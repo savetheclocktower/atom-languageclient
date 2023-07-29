@@ -44,7 +44,7 @@ export default class Convert {
     if (process.platform === "win32") {
       // Deal with Windows drive names
       if (filePath[0] === "/") {
-        filePath = filePath.substr(1)
+        filePath = filePath.substring(1)
       }
       return filePath.replace(/\//g, "\\")
     }
