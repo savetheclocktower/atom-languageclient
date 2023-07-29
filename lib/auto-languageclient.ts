@@ -22,6 +22,8 @@ import NotificationsAdapter from "./adapters/notifications-adapter"
 import OutlineViewAdapter from "./adapters/outline-view-adapter"
 import RenameAdapter from "./adapters/rename-adapter"
 import SignatureHelpAdapter from "./adapters/signature-help-adapter"
+import SymbolAdapter from "./adapters/symbol-adapter"
+import * as sa from "./adapters/symbol-adapter"
 import * as ShowDocumentAdapter from "./adapters/show-document-adapter"
 import * as Utils from "./utils"
 import { Socket } from "net"
@@ -37,6 +39,7 @@ import {
 import { Disposable, CompositeDisposable, Point, Range, TextEditor } from "atom"
 import * as ac from "atom/autocomplete-plus"
 import { basename } from "path"
+import type * as symbol from "./adapters/symbol-adapter"
 
 export { ActiveServer, LanguageClientConnection, LanguageServerProcess }
 export type ConnectionType = "stdio" | "socket" | "ipc"
@@ -98,6 +101,11 @@ export default class AutoLanguageClient {
   /** Return the name of your server, e.g. 'Eclipse JDT' */
   protected getServerName(): string {
     throw Error("Must implement getServerName when extending AutoLanguageClient")
+  }
+
+  /** Return the name of your package, e.g. 'ide-typescript' */
+  protected getPackageName(): string {
+    throw Error("Must implement getPackageName when extending AutoLanguageClient")
   }
 
   /** Start your server process */
@@ -324,6 +332,11 @@ export default class AutoLanguageClient {
   protected async getConnectionForEditor(editor: TextEditor): Promise<LanguageClientConnection | null> {
     const server = await this._serverManager.getServer(editor)
     return server ? server.connection : null
+  }
+
+  /** Gets an ActiveServer for a given TextEditor */
+  protected async getServerForEditor(editor: TextEditor): Promise<ActiveServer | null> {
+    return await this._serverManager.getServer(editor)
   }
 
   /** Restart all active language servers for this language client in the workspace */
@@ -770,6 +783,57 @@ export default class AutoLanguageClient {
 
     this.outlineView = this.outlineView || new OutlineViewAdapter()
     return this.outlineView.getOutline(server.connection, editor)
+  }
+
+  // Symbol View (file/project/reference) via LS documentSymbol/workspaceSymbol/goToDefinition
+  public provideSymbols(): sa.SymbolProvider {
+    let adapter = new SymbolAdapter()
+    let settings = this.getSymbolSettings()
+
+    return {
+      name: this.getServerName(),
+      packageName: this.getPackageName(),
+      isExclusive: adapter.isExclusive,
+
+      canProvideSymbols: async (meta: sa.SymbolMeta): Promise<boolean | number> => {
+        let server = await this._serverManager.getServer(meta.editor)
+        if (!server) return false
+
+        let scopes = this.getGrammarScopes()
+        let baseScope = meta.editor.getGrammar()?.scopeName
+        if (!scopes.includes(baseScope)) return false
+
+        return adapter.canProvideSymbols(server, meta)
+      },
+
+      getSymbols: async (meta: sa.SymbolMeta, listController: sa.ListController): Promise<sa.SymbolResponse> => {
+        let query = meta.query ?? ''
+        let minLength = settings.minimumQueryLength ?? 0
+        if (meta.type === 'project' && query.length < minLength) {
+          let noun = minLength === 1 ? 'character' : 'characters'
+          listController.set({
+            loadingMessage: null,
+            emptyMessage: `Query must be at least ${minLength} ${noun} long.`
+          })
+          return []
+        }
+        let server = await this._serverManager.getServer(meta.editor)
+        if (!server) return []
+
+        let currentSettings = this.getSymbolSettings()
+        return adapter.getSymbols(server, meta, currentSettings)
+      }
+    }
+  }
+
+  /**
+   * Override to provide settings from your own package.
+   *
+   * @returns An object of key/value pairs that control aspects of symbol
+   *   retrieval and display.
+   */
+  getSymbolSettings(): symbol.SymbolSettings {
+    return ({} as symbol.SymbolSettings)
   }
 
   // Call Hierarchy View via LS callHierarchy---------------------------------
