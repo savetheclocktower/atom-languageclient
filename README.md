@@ -1,10 +1,23 @@
-# Atom Language Server Protocol Client
-
-[![Build Status](https://github.com/atom-ide-community/atom-languageclient/workflows/CI/badge.svg)](https://github.com/atom-ide-community/atom-languageclient/actions) [![Dependency Status](https://david-dm.org/atom-ide-community/atom-languageclient.svg)](https://david-dm.org/atom-ide-community/atom-languageclient)
+# ~~Atom~~ Pulsar Language Server Protocol Client (Forked!)
 
 This repo was moved from [atom/atom-languageclient](https://github.com/atom/atom-languageclient)
 
-Provide integration support for adding Language Server Protocol servers to Atom.
+Provide integration support for adding Language Server Protocol servers to Pulsar.
+
+## What’s different?
+
+Here are a few of the notable features added in this fork:
+
+* Symbol search within files and across projects, plus “Go to Reference” support, via [symbols-view-redux](https://web.pulsar-edit.dev/packages/symbols-view-redux)
+  * Ability to filter symbols by type (exclude constants, types, etc.)
+
+* Deeper integration with Linter:
+  * Possible solutions for linting issues appear in an intentions menu
+  * Ability to ignore specific codes either altogether or until the buffer is saved
+* Using the `intentions` package for code actions:
+  * Ability to invoke the `intentions:show` command anywhere in the buffer and receive code action suggestions
+
+More features are planned.
 
 ## Background
 
