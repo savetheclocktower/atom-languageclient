@@ -55,8 +55,7 @@ describe("CodeActionAdapter", () => {
           },
         ],
         (x) => x,
-        () => Promise.resolve(true),
-        false
+        () => Promise.resolve(true)
       )
 
       expect((languageClient as any).codeAction).toHaveBeenCalled()
