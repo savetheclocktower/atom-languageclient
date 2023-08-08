@@ -20,10 +20,10 @@ export default class RenameAdapter {
     point: Point,
     newName: string
   ): Promise<Map<atomIde.IdeUri, atomIde.TextEdit[]> | null> {
-    const edit = await connection.rename(RenameAdapter.createRenameParams(editor, point, newName))
-    if (edit === null) {
-      return null
-    }
+    const edit = await connection.rename(
+      RenameAdapter.createRenameParams(editor, point, newName)
+    )
+    if (edit === null) { return null }
 
     if (edit.documentChanges) {
       return RenameAdapter.convertDocumentChanges(<TextDocumentEdit[]>edit.documentChanges)

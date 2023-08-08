@@ -3,7 +3,10 @@ import { LanguageClientConnection, ShowDocumentParams, ShowDocumentResult } from
 import { TextEditor } from "atom"
 import Convert from "../convert"
 
-/** Public: Adapts the window/showDocument command to Atom's text editors or external programs. */
+/**
+ * Public: Adapts the window/showDocument command to Atom's text editors or
+ * external programs.
+ */
 const ShowDocumentAdapter = {
   /** {@inheritDoc attach} */
   attach,
@@ -13,18 +16,24 @@ const ShowDocumentAdapter = {
 // for consistency with other adapters
 export default ShowDocumentAdapter
 
-/** Public: Attach to a {LanguageClientConnection} to recieve requests to show documents. */
+/**
+ * Public: Attach to a {@link LanguageClientConnection} to recieve requests to
+ * show documents.
+ */
 export function attach(connection: LanguageClientConnection): void {
   connection.onShowDocument(showDocument)
 }
 
 /**
- * Public: show documents inside Atom text editor or in external programs
+ * Public: Show documents inside Atom text editor or in external programs.
  *
- * @param params The {ShowDocumentParams} received from the language server indicating the document to be displayed as
- *   well as other metadata.
- * @returns {Promise<ShowDocumentResult>} With a `success: boolean` property specifying if the operation was sucessful
- *   {@inheritDoc ShowDocumentParams}
+ * @param params The {@link ShowDocumentParams} received from the language
+ * server indicating the document to be displayed as well as other metadata.
+ *
+ * @returns A {@link Promise<ShowDocumentResult>} With a `success: boolean`
+ * property specifying if the operation was sucessful.
+ *
+ * {@inheritDoc ShowDocumentParams}
  */
 export async function showDocument(params: ShowDocumentParams): Promise<ShowDocumentResult> {
   try {

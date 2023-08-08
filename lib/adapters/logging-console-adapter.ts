@@ -1,34 +1,43 @@
 import type * as atomIde from "atom-ide-base"
 import { LanguageClientConnection, LogMessageParams, MessageType } from "../languageclient"
 
-/** Adapts Atom's user notifications to those of the language server protocol. */
+/**
+ * Adapts Atom's user notifications to those of the language server protocol.
+ */
 export default class LoggingConsoleAdapter {
   private _consoles: Set<atomIde.ConsoleApi> = new Set()
 
   /**
-   * Create a new {LoggingConsoleAdapter} that will listen for log messages via the supplied {LanguageClientConnection}.
+   * Create a new {@link LoggingConsoleAdapter} that will listen for log
+   * messages via the supplied {@link LanguageClientConnection}.
    *
-   * @param connection A {LanguageClientConnection} to the language server that will provide log messages.
+   * @param connection A {@link LanguageClientConnection} to the language
+   *   server that will provide log messages.
    */
   constructor(connection: LanguageClientConnection) {
     connection.onLogMessage(this.logMessage.bind(this))
   }
 
-  /** Dispose this adapter ensuring any resources are freed and events unhooked. */
+  /**
+   * Dispose this adapter ensuring any resources are freed and events unhooked.
+   */
   public dispose(): void {
     this.detachAll()
   }
 
   /**
-   * Public: Attach this {LoggingConsoleAdapter} to a given {atomIde.ConsoleApi}.
+   * Public: Attach this {@link LoggingConsoleAdapter} to a given
+   * {@link atomIde.ConsoleApi}.
    *
-   * @param console A {atomIde.ConsoleApi} that wants to receive messages.
+   * @param console A {@link atomIde.ConsoleApi} that wants to receive messages.
    */
   public attach(console: atomIde.ConsoleApi): void {
     this._consoles.add(console)
   }
 
-  /** Public: Remove all {atomIde.ConsoleApi}'s attached to this adapter. */
+  /**
+   *  Public: Remove all {@link atomIde.ConsoleApi}s attached to this adapter.
+   */
   public detachAll(): void {
     this._consoles.clear()
   }
@@ -36,7 +45,8 @@ export default class LoggingConsoleAdapter {
   /**
    * Log a message using the Atom IDE UI Console API.
    *
-   * @param params The {LogMessageParams} received from the language server indicating the details of the message to be loggedd.
+   * @param params The {@link LogMessageParams} received from the language
+   *   server indicating the details of the message to be loggedd.
    */
   private logMessage(params: LogMessageParams): void {
     switch (params.type) {
@@ -56,6 +66,8 @@ export default class LoggingConsoleAdapter {
         this._consoles.forEach((c) => c.log(params.message))
         return
       }
+      default:
+        return
     }
   }
 }

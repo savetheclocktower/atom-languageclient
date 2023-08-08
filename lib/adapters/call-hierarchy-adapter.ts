@@ -11,25 +11,32 @@ import OutlineViewAdapter from "./outline-view-adapter"
 const cancellationTokens = new WeakMap<LanguageClientConnection, CancellationTokenSource>()
 
 /**
- * Public: Determine whether this adapter can be used to adapt a language server based on the serverCapabilities matrix
- * containing a callHierarchyProvider.
+ * Public: Determine whether this adapter can be used to adapt a language
+ * server based on the serverCapabilities matrix containing a
+ * callHierarchyProvider.
  *
- * @param serverCapabilities The {ServerCapabilities} of the language server to consider.
- * @returns A {Boolean} indicating adapter can adapt the server based on the given serverCapabilities.
+ * @param serverCapabilities The {@link ServerCapabilities} of the language
+ *   server to consider.
+ *
+ * @returns A boolean indicating whether the adapter can adapt the server based
+ *   on the given serverCapabilities.
  */
 export function canAdapt(serverCapabilities: ServerCapabilities): boolean {
   return Boolean(serverCapabilities.callHierarchyProvider)
 }
 
 /**
- * Public: Obtain the relationship between calling and called functions hierarchically. Corresponds to lsp's
- * CallHierarchyPrepareRequest.
+ * Public: Obtain the relationship between calling and called functions
+ * hierarchically. Corresponds to lsp's CallHierarchyPrepareRequest.
  *
- * @param connection A {LanguageClientConnection} to the language server that provides highlights.
- * @param editor The Atom {TextEditor} containing the text associated with the calling.
- * @param position The Atom {Point} associated with the calling.
+ * @param connection A {@link LanguageClientConnection} to the language
+ *   server that provides highlights.
+ * @param editor The Atom {@link TextEditor} containing the text associated
+ *   with the calling.
+ * @param point The Atom {@link Point} associated with the calling.
  * @param type The hierarchy type either incoming or outgoing.
- * @returns A {Promise} of an {CallHierarchy}.
+ *
+ * @returns A {@link Promise} of a {@link CallHierarchy}.
  */
 export async function getCallHierarchy<T extends atomIde.CallHierarchyType>(
   connection: LanguageClientConnection,
@@ -77,6 +84,7 @@ async function getIncoming(
     connection,
   }
 }
+
 /** Corresponds to lsp's CallHierarchyOutgoingCallsRequest. */
 async function getOutgoing(
   connection: LanguageClientConnection,

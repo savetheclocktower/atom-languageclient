@@ -123,7 +123,6 @@ function addNotificationForMessage(
     case MessageType.Warning:
       return atom.notifications.addWarning(message, options)
     case MessageType.Log:
-      // console.log(params.message);
       return null
     case MessageType.Info:
     default:

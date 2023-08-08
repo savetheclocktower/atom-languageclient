@@ -5,32 +5,42 @@ import { LanguageClientConnection, Location, LocationLink, ServerCapabilities } 
 import { Point, TextEditor, Range } from "atom"
 
 /**
- * Public: Adapts the language server definition provider to the Atom IDE UI Definitions package for 'Go To Definition'
- * functionality.
+ * Public: Adapts the language server definition provider to the Atom IDE UI
+ * Definitions package for 'Go To Definition' functionality.
  */
 export default class DefinitionAdapter {
   /**
-   * Public: Determine whether this adapter can be used to adapt a language server based on the serverCapabilities
-   * matrix containing a definitionProvider.
+   * Public: Determine whether this adapter can be used to adapt a language
+   * server based on the serverCapabilities matrix containing a
+   * definitionProvider.
    *
-   * @param serverCapabilities The {ServerCapabilities} of the language server to consider.
-   * @returns A {Boolean} indicating adapter can adapt the server based on the given serverCapabilities.
+   * @param serverCapabilities The {@link ServerCapabilities} of the language
+   *   server to consider.
+   * @returns A boolean indicating the adapter can adapt the server based on
+   *   the given serverCapabilities.
    */
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
     return serverCapabilities.definitionProvider === true
   }
 
   /**
-   * Public: Get the definitions for a symbol at a given {Point} within a {TextEditor} including optionally highlighting
-   * all other references within the document if the langauge server also supports highlighting.
+   * Public: Get the definitions for a symbol at a given {@link Point} within a
+   * {@link TextEditor}, including optionally highlighting all other references
+   * within the document if the langauge server also supports highlighting.
    *
-   * @param connection A {LanguageClientConnection} to the language server that will provide definitions and highlights.
-   * @param serverCapabilities The {ServerCapabilities} of the language server that will be used.
+   * @param connection A {@link LanguageClientConnection} to the language
+   *   server that will provide definitions and highlights.
+   * @param serverCapabilities The {@link ServerCapabilities} of the language
+   *   server that will be used.
    * @param languageName The name of the programming language.
-   * @param editor The Atom {TextEditor} containing the symbol and potential highlights.
-   * @param point The Atom {Point} containing the position of the text that represents the symbol for which the
-   *   definition and highlights should be provided.
-   * @returns A {Promise} indicating adapter can adapt the server based on the given serverCapabilities.
+   * @param editor The Atom {@link TextEditor} containing the symbol and
+   *   potential highlights.
+   * @param point The Atom {@link Point} containing the position of the text
+   *   that represents the symbol for which the definition and highlights should
+   *   be provided.
+   *
+   * @returns A {@link Promise} that will resolve with a {@link
+   *   DefinitionQueryResult}, or else with `null`.
    */
   public async getDefinition(
     connection: LanguageClientConnection,
@@ -62,11 +72,15 @@ export default class DefinitionAdapter {
   }
 
   /**
-   * Public: Normalize the locations so a single {Location} becomes an {Array} of just one. The language server protocol
-   * return either as the protocol evolved between v1 and v2.
+   * Public: Normalize the locations so a single {@link Location} becomes an
+   * array of just one. The language server protocol can return either, as the
+   * protocol evolved between v1 and v2.
    *
-   * @param locationResult Either a single {Location} object or an {Array} of {Locations}.
-   * @returns An {Array} of {Location}s or {null} if the locationResult was null.
+   * @param locationResult Either a single {@link Location} object or an array
+   *   of {@link Location}s.
+   *
+   * @returns An array of {@link Location}s or `null` if the locationResult was
+   *   null.
    */
   public static normalizeLocations(
     locationResult: Location | Location[] | LocationLink[] | null
@@ -83,11 +97,14 @@ export default class DefinitionAdapter {
   }
 
   /**
-   * Public: Convert an {Array} of {Location} objects into an Array of {Definition}s.
+   * Public: Convert an array of {@link Location} objects into an Array of
+   *  {@link Definition}s.
    *
-   * @param locations An {Array} of {Location} objects to be converted.
+   * @param locations An array of {@link Location} objects to be converted.
    * @param languageName The name of the language these objects are written in.
-   * @returns An {Array} of {Definition}s that represented the converted {Location}s.
+   *
+   * @returns An array of {@link Definition}s that represented the converted
+   *   {@link Location}s.
    */
   public static convertLocationsToDefinitions(
     locations: Location[] | LocationLink[],

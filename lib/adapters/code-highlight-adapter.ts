@@ -10,14 +10,18 @@ export default class CodeHighlightAdapter {
   }
 
   /**
-   * Public: Creates highlight markers for a given editor position. Throws an error if documentHighlightProvider is not
-   * a registered capability.
+   * Public: Creates highlight markers for a given editor position. Throws an
+   * error if documentHighlightProvider is not a registered capability.
    *
-   * @param connection A {LanguageClientConnection} to the language server that provides highlights.
-   * @param serverCapabilities The {ServerCapabilities} of the language server that will be used.
-   * @param editor The Atom {TextEditor} containing the text to be highlighted.
-   * @param position The Atom {Point} to fetch highlights for.
-   * @returns A {Promise} of an {Array} of {Range}s to be turned into highlights.
+   * @param connection A {@link LanguageClientConnection} to the language
+   *   server that provides highlights.
+   * @param serverCapabilities The {@link ServerCapabilities} of the language
+   *   server that will be used.
+   * @param editor The Atom {@link TextEditor} containing the text to be
+   *   highlighted.
+   * @param position The Atom {@link Point} to fetch highlights for.
+   *
+   * @returns A {@link Promise} of an array of {@link Range}s to be turned into highlights.
    */
   public static async highlight(
     connection: LanguageClientConnection,

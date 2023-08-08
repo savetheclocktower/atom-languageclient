@@ -15,9 +15,10 @@ import { CompositeDisposable, Disposable, TextEditor, BufferStoppedChangingEvent
 import * as Utils from "../utils"
 
 /**
- * Public: Synchronizes the documents between Atom and the language server by notifying each end of changes, opening,
- * closing and other events as well as sending and applying changes either in whole or in part depending on what the
- * language server supports.
+ * Public: Synchronizes the documents between Atom and the language server by
+ * notifying each end of changes, opening, closing and other events as well as
+ * sending and applying changes either in whole or in part depending on what
+ * the language server supports.
  */
 export default class DocumentSyncAdapter {
   private _disposable = new CompositeDisposable()
@@ -26,11 +27,15 @@ export default class DocumentSyncAdapter {
   private _versions: Map<string, number> = new Map()
 
   /**
-   * Public: Determine whether this adapter can be used to adapt a language server based on the serverCapabilities
-   * matrix textDocumentSync capability either being Full or Incremental.
+   * Public: Determine whether this adapter can be used to adapt a language
+   * server based on the serverCapabilities matrix, with textDocumentSync
+   * capability being either Full or Incremental.
    *
-   * @param serverCapabilities The {ServerCapabilities} of the language server to consider.
-   * @returns A {Boolean} indicating adapter can adapt the server based on the given serverCapabilities.
+   * @param serverCapabilities The {@link ServerCapabilities} of the language
+   *   server to consider.
+   *
+   * @returns A boolean indicating adapter can adapt the server based on the
+   *   given serverCapabilities.
    */
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
     return this.canAdaptV2(serverCapabilities) || this.canAdaptV3(serverCapabilities)
@@ -48,19 +53,25 @@ export default class DocumentSyncAdapter {
     return (
       options !== null &&
       typeof options === "object" &&
-      (options.change === TextDocumentSyncKind.Incremental || options.change === TextDocumentSyncKind.Full)
+      (
+        options.change === TextDocumentSyncKind.Incremental ||
+        options.change === TextDocumentSyncKind.Full
+      )
     )
   }
 
   /**
-   * Public: Create a new {DocumentSyncAdapter} for the given language server.
+   * Public: Create a new {@link DocumentSyncAdapter} for the given language
+   * server.
    *
-   * @param _connection A {LanguageClientConnection} to the language server to be kept in sync.
+   * @param _connection A {@link LanguageClientConnection} to the language
+   *   server to be kept insync.
    * @param documentSync The document syncing options.
-   * @param _editorSelector A predicate function that takes a {TextEditor} and returns a {boolean} indicating whether
-   *   this adapter should care about the contents of the editor.
-   * @param _getLanguageIdFromEditor A function that returns a {string} of `languageId` used for `textDocument/didOpen`
-   *   notification.
+   * @param _editorSelector A predicate function that takes a {@link
+   *   TextEditor} and returns a boolean indicating whether this adapter should
+   *   care about the contents of the editor.
+   * @param _getLanguageIdFromEditor A function that returns a `languageId`
+   *   string used for `textDocument/didOpen` notification.
    */
   constructor(
     private _connection: LanguageClientConnection,
@@ -85,13 +96,15 @@ export default class DocumentSyncAdapter {
   }
 
   /**
-   * Examine a {TextEditor} and decide if we wish to observe it. If so ensure that we stop observing it when it is
-   * closed or otherwise destroyed.
+   * Examine a {@link TextEditor} and decide if we wish to observe it. If so
+   * ensure that we stop observing it when it is closed or otherwise destroyed.
    *
-   * @param editor A {TextEditor} to consider for observation.
+   * @param editor A {@link TextEditor} to consider for observation.
    */
   public observeTextEditor(editor: TextEditor): void {
-    const listener = editor.observeGrammar((_grammar) => this._handleGrammarChange(editor))
+    const listener = editor.observeGrammar(
+      (_grammar) => this._handleGrammarChange(editor)
+    )
     this._disposable.add(
       editor.onDidDestroy(() => {
         this._disposable.remove(listener)
@@ -144,17 +157,22 @@ export default class DocumentSyncAdapter {
   }
 }
 
-/** Public: Keep a single {TextEditor} in sync with a given language server. */
+/**
+ * Public: Keep a single {@link TextEditor} in sync with a given language
+ * server.
+ */
 export class TextEditorSyncAdapter {
   private _disposable = new CompositeDisposable()
   private _currentUri: string
   private _fakeDidChangeWatchedFiles: boolean
 
   /**
-   * Public: Create a {TextEditorSyncAdapter} in sync with a given language server.
+   * Public: Create a {@link TextEditorSyncAdapter} in sync with a given
+   * language server.
    *
-   * @param _editor A {TextEditor} to keep in sync.
-   * @param _connection A {LanguageClientConnection} to a language server to keep in sync.
+   * @param _editor A {@link TextEditor} to keep in sync.
+   * @param _connection A {@link LanguageClientConnection} to a language server
+   *   to keep in sync.
    * @param _documentSync The document syncing options.
    */
   constructor(
@@ -192,30 +210,39 @@ export class TextEditorSyncAdapter {
     }
   }
 
-  /** The change tracking disposable listener that will ensure that changes are sent to the language server as appropriate. */
+  /**
+   * The change tracking disposable listener that will ensure that changes are
+   * sent to the language server as appropriate.
+   */
   public setupChangeTracking(documentSync: TextDocumentSyncOptions): Disposable | null {
     switch (documentSync.change) {
       case TextDocumentSyncKind.Full:
         return this._editor.onDidChange(this.sendFullChanges.bind(this))
       case TextDocumentSyncKind.Incremental:
         return this._editor.getBuffer().onDidChangeText(this.sendIncrementalChanges.bind(this))
+      default:
+        return null
     }
-    return null
   }
 
-  /** Dispose this adapter ensuring any resources are freed and events unhooked. */
+  /**
+   * Dispose this adapter, ensuring any resources are freed and events unhooked.
+   */
   public dispose(): void {
     this._disposable.dispose()
   }
 
-  /** Get the languageId field that will be sent to the language server by simply using the `_getLanguageIdFromEditor`. */
+  /**
+   * Get the languageId field that will be sent to the language server by
+   * simply using the `_getLanguageIdFromEditor`.
+   */
   public getLanguageId(): string {
     return this._getLanguageIdFromEditor(this._editor)
   }
 
   /**
-   * Public: Create a {VersionedTextDocumentIdentifier} for the document observed by this adapter including both the Uri
-   * and the current Version.
+   * Public: Create a {@link VersionedTextDocumentIdentifier} for the document
+   * observed by this adapter including both the Uri and the current Version.
    */
   public getVersionedTextDocumentIdentifier(): VersionedTextDocumentIdentifier {
     return {
@@ -224,7 +251,10 @@ export class TextEditorSyncAdapter {
     }
   }
 
-  /** Public: Send the entire document to the language server. This is used when operating in Full (1) sync mode. */
+  /**
+   * Public: Send the entire document to the language server. This is used when
+   * operating in Full (1) sync mode.
+   */
   public sendFullChanges(): void {
     if (!this._isPrimaryAdapter()) {
       return
@@ -238,11 +268,13 @@ export class TextEditorSyncAdapter {
   }
 
   /**
-   * Public: Send the incremental text changes to the language server. This is used when operating in Incremental (2) sync mode.
+   * Public: Send the incremental text changes to the language server. This is
+   * used when operating in Incremental (2) sync mode.
    *
-   * @param event The event fired by Atom to indicate the document has stopped changing including a list of changes
-   *   since the last time this event fired for this text editor. NOTE: The order of changes in the event is guaranteed
-   *   top to bottom. Language server expects this in reverse.
+   * @param event The event fired by Atom to indicate the document has stopped
+   *   changing, including a list of changes since the last time this event
+   *   fired for this text editor. NOTE: The order of changes in the event is
+   *   guaranteed top to bottom. Language server expects this in reverse.
    */
   public sendIncrementalChanges(event: BufferStoppedChangingEvent): void {
     if (event.changes.length > 0) {
@@ -259,10 +291,13 @@ export class TextEditorSyncAdapter {
   }
 
   /**
-   * Public: Convert an Atom {TextEditEvent} to a language server {TextDocumentContentChangeEvent} object.
+   * Public: Converts an Atom {@link TextEditEvent} to a language server
+   * {@link TextDocumentContentChangeEvent} object.
    *
-   * @param change The Atom {TextEditEvent} to convert.
-   * @returns A {TextDocumentContentChangeEvent} that represents the converted {TextEditEvent}.
+   * @param change The Atom {@link TextEditEvent} to convert.
+   *
+   * @returns A {@link TextDocumentContentChangeEvent} that represents the
+   *   converted {@link TextEditEvent}.
    */
   public static textEditToContentChange(change: TextChange): TextDocumentContentChangeEvent {
     return {
@@ -272,6 +307,9 @@ export class TextEditorSyncAdapter {
     }
   }
 
+  // Since a buffer might be represented by multiple editors, we must ensure
+  // that only one of them is in charge of reporting buffer changes. So we pick
+  // the editor with the lowest ID.
   private _isPrimaryAdapter(): boolean {
     const lowestIdForBuffer = Math.min(
       ...atom.workspace
@@ -291,8 +329,8 @@ export class TextEditorSyncAdapter {
   }
 
   /**
-   * Ensure when the document is opened we send notification to the language server so it can load it in and keep track
-   * of diagnostics etc.
+   * Ensure that, when the buffer is opened, we send a notification to the
+   * language server so it can load the same buffer for tracking.
    */
   private didOpen(): void {
     const filePath = this._editor.getPath()
@@ -318,13 +356,18 @@ export class TextEditorSyncAdapter {
     return this._versions.get(filePath) || 1
   }
 
-  /** Called when the {TextEditor} is closed and sends the 'didCloseTextDocument' notification to the connected language server. */
+  /**
+   * Called when the {@link TextEditor} is closed and sends the
+   * `didCloseTextDocument` notification to the connected language server.
+   */
   public didClose(): void {
     if (this._editor.getPath() == null) {
       return
     } // Not yet saved
 
-    const fileStillOpen = atom.workspace.getTextEditors().find((t) => t.getBuffer() === this._editor.getBuffer())
+    const fileStillOpen = atom.workspace.getTextEditors().find(
+      (t) => t.getBuffer() === this._editor.getBuffer()
+    )
     if (fileStillOpen) {
       return // Other windows or editors still have this file open
     }
@@ -332,7 +375,10 @@ export class TextEditorSyncAdapter {
     this._connection.didCloseTextDocument({ textDocument: { uri: this.getEditorUri() } })
   }
 
-  /** Called just before the {TextEditor} saves and sends the 'willSaveTextDocument' notification to the connected language server. */
+  /**
+   * Called just before the {@link TextEditor} saves and sends the
+   * `willSaveTextDocument` notification to the connected language server.
+   */
   public willSave(): void {
     if (!this._isPrimaryAdapter()) {
       return
@@ -346,15 +392,16 @@ export class TextEditorSyncAdapter {
   }
 
   /**
-   * Called just before the {TextEditor} saves, sends the 'willSaveWaitUntilTextDocument' request to the connected
-   * language server and waits for the response before saving the buffer.
+   * Called just before the {@link TextEditor} saves, sends the
+   * `willSaveWaitUntilTextDocument` request to the connected language server,
+   * and waits for the response before saving the buffer.
    */
   public async willSaveWaitUntil(): Promise<void> {
     if (!this._isPrimaryAdapter()) {
       return Promise.resolve()
     }
 
-    const buffer = this._editor.getBuffer()
+    // const buffer = this._editor.getBuffer()
     const uri = this.getEditorUri()
     const title = this._editor.getLongTitle()
 
@@ -367,7 +414,7 @@ export class TextEditorSyncAdapter {
     )
       .then((edits) => {
         const cursor = this._editor.getCursorBufferPosition()
-        ApplyEditAdapter.applyEdits(buffer, Convert.convertLsTextEdits(edits))
+        ApplyEditAdapter.applyEdits(this._editor, Convert.convertLsTextEdits(edits))
         this._editor.setCursorBufferPosition(cursor)
       })
       .catch((err) => {
@@ -383,9 +430,11 @@ export class TextEditorSyncAdapter {
   }
 
   /**
-   * Called when the {TextEditor} saves and sends the 'didSaveTextDocument' notification to the connected language
-   * server. Note: Right now this also sends the `didChangeWatchedFiles` notification as well but that will be sent from
-   * elsewhere soon.
+   * Called when the {@link TextEditor} saves and sends the
+   * `didSaveTextDocument` notification to the connected language server.
+   *
+   * Note: Right now this also sends the `didChangeWatchedFiles` notification
+   * as well, but that will be sent from elsewhere soon.
    */
   public didSave(): void {
     if (!this._isPrimaryAdapter()) {
@@ -407,6 +456,11 @@ export class TextEditorSyncAdapter {
     }
   }
 
+  /**
+   * Called when the user renames a file via the tree view and sends the
+   * necessary notifications to the server so that it can stop tracking the old
+   * document and start tracking the new one.
+   */
   public didRename(): void {
     if (!this._isPrimaryAdapter()) {
       return
@@ -438,7 +492,9 @@ export class TextEditorSyncAdapter {
     }
   }
 
-  /** Public: Obtain the current {TextEditor} path and convert it to a Uri. */
+  /**
+   * Public: Obtain the current {@link TextEditor} path and convert it to a Uri.
+   */
   public getEditorUri(): string {
     return Convert.pathToUri(this._editor.getPath() || "")
   }

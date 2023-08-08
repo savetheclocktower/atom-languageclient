@@ -147,7 +147,7 @@ export default class SymbolAdapter {
   logger: Logger
 
   /**
-   * Public: Create a new {@link SymbolAdapter} to provide symbols to
+   * Public: Creates a new {@link SymbolAdapter} to provide symbols to
    * `symbols-view-redux`.
    *
    * @param logger An instance of {@link Logger}.
@@ -227,15 +227,19 @@ export default class SymbolAdapter {
   }
 
   /**
-   * Protected: Supplies candidates to resolve a given reference for
-   * `symbols-view-redux`.
+   * Protected: Supplies candidates to resolve a given project-wide reference
+   * for `symbols-view-redux`.
    *
    * @param server A language server instance.
    * @param meta Metadata about the symbol request from `symbols-view-redux`.
    *
    * @returns The symbols to be shown by `symbols-view-redux`.
    */
-  protected async getProjectReferences(server: Awaited<ServerPromise>, meta: SymbolMeta, settings: SymbolSettings): Promise<SymbolEntry[]> {
+  protected async getProjectReferences(
+    server: Awaited<ServerPromise>,
+    meta: SymbolMeta,
+    settings: SymbolSettings
+  ): Promise<SymbolEntry[]> {
     if (server === null) return []
 
     let editor = meta.editor
@@ -328,14 +332,15 @@ export default class SymbolAdapter {
     const processSymbols = (symbols: typeof symbolResults) => {
       for (const symbol of symbols) {
         if (DocumentSymbol.is(symbol)) {
-          const range = symbol.selectionRange
-          const position = Convert.positionToPoint(range.start)
           let tag = symbolKindToTag(symbol.kind)
           if (tag && ignoredTags.includes(tag)) continue
+          const range = Convert.lsRangeToAtomRange(symbol.selectionRange)
+          const position = range.start
 
           results.push({
             name: symbol.name,
-            position: position,
+            position,
+            range,
             tag
           })
 

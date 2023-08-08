@@ -394,7 +394,7 @@ export class LanguageClientConnection extends EventEmitter {
    * Public: Send a `textDocument/documentSymbol` request.
    *
    * @param params The {DocumentSymbolParams} that identifies the document for which symbols are desired.
-   * @param cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
+   * @param _cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
    * @returns A {Promise} containing an {Array} of {SymbolInformation}s that can be used to navigate this document.
    */
   public documentSymbol(
@@ -408,10 +408,14 @@ export class LanguageClientConnection extends EventEmitter {
    * Public: Send a `workspace/symbol` request.
    *
    * @param params The {WorkspaceSymbolParams} containing the query string to search the workspace for.
+   * @param _cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
    * @returns A {Promise} containing an {Array} of {SymbolInformation}s that identify where the query string occurs
    *   within the workspace.
    */
-  public workspaceSymbol(params: lsp.WorkspaceSymbolParams): Promise<lsp.SymbolInformation[] | null> {
+  public workspaceSymbol(
+    params: lsp.WorkspaceSymbolParams,
+    _cancellationToken?: jsonrpc.CancellationToken
+  ): Promise<lsp.SymbolInformation[] | null> {
     return this._sendRequest(lsp.WorkspaceSymbolRequest.type, params)
   }
 
