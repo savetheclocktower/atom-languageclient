@@ -23,7 +23,7 @@
     "test.format": "prettier . --check",
     "test.lint": "eslint .",
     "watch": "npm run compile -- --watch",
-    "postinstall": "patch-package"
+    "postinstall": "npx patch-package"
   },
   "dependencies": {
     "atom-ide-base": "^3.3.0",
