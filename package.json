@@ -23,7 +23,8 @@
     "test.format": "prettier . --check",
     "test.lint": "eslint .",
     "watch": "npm run compile -- --watch",
-    "postinstall": "./node_modules/.bin/patch-package"
+    "patch": "patch-package",
+    "postinstall": "npm run patch"
   },
   "dependencies": {
     "atom-ide-base": "^3.3.0",
