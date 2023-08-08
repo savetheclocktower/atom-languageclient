@@ -1,0 +1,13 @@
+diff --git a/node_modules/@types/atom/linter/index.d.ts b/node_modules/@types/atom/linter/index.d.ts
+index 712de0a..b531902 100755
+--- a/node_modules/@types/atom/linter/index.d.ts
++++ b/node_modules/@types/atom/linter/index.d.ts
+@@ -56,7 +56,7 @@ export interface Message {
+     severity: 'error' | 'warning' | 'info';
+ 
+     /** Possible solutions (which the user can invoke at will). */
+-    solutions?: Array<ReplacementSolution | CallbackSolution>;
++    solutions?: Array<ReplacementSolution | CallbackSolution> | Promise<Array<ReplacementSolution | CallbackSolution>>;
+ 
+     /**
+      *  Markdown long description of the error. Accepts a callback so that you can

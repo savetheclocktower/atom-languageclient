@@ -22,7 +22,8 @@
     "test": "npm run compile && atom --test build/test",
     "test.format": "prettier . --check",
     "test.lint": "eslint .",
-    "watch": "npm run compile -- --watch"
+    "watch": "npm run compile -- --watch",
+    "postinstall": "patch-package"
   },
   "prettier": "prettier-config-atomic",
   "dependencies": {
