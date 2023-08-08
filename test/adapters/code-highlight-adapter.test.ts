@@ -1,4 +1,4 @@
-import * as invariant from "assert"
+import invariant from "assert"
 import { Point, Range } from "atom"
 import * as ls from "../../lib/languageclient"
 import CodeHighlightAdapter from "../../lib/adapters/code-highlight-adapter"

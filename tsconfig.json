@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "esModuleInterop": true,
     "module": "commonjs",
     "target": "es6",
     "outDir": "build",
@@ -11,8 +12,8 @@
     "noImplicitAny": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
-    "noUnusedLocals": true,
-    "typeRoots": ["./node_modules/@types", "./typings"]
+    "noUnusedLocals": false,
+    "typeRoots": ["./typings", "./node_modules/@types"]
   },
   "include": ["typings", "lib", "test"]
 }

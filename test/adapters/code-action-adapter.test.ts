@@ -1,4 +1,5 @@
 import { Range } from "atom"
+import Convert from "../../lib/convert"
 import * as ls from "../../lib/languageclient"
 import CodeActionAdapter from "../../lib/adapters/code-action-adapter"
 /* eslint-disable import/no-deprecated */
@@ -46,13 +47,16 @@ describe("CodeActionAdapter", () => {
         new Range([1, 2], [3, 4]),
         [
           {
-            filePath: testPath,
-            type: "Error",
-            text: "test message",
-            range: new Range([1, 2], [3, 3]),
-            providerName: "test linter",
+            // filePath: testPath,
+            severity: ls.DiagnosticSeverity.Error,
+            message: "test message",
+            range: Convert.atomRangeToLSRange(new Range([1, 2], [3, 3])),
+            // providerName: "test linter",
           },
-        ]
+        ],
+        (x) => x,
+        () => Promise.resolve(true),
+        false
       )
 
       expect((languageClient as any).codeAction).toHaveBeenCalled()

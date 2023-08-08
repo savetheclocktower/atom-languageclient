@@ -1,5 +1,5 @@
 /* eslint-disable no-shadow, @typescript-eslint/no-unused-vars */
-import { Point, Notification, NotificationOptions, TextEditor } from "atom"
+import { Point, /* Notification, NotificationOptions,*/ TextEditor } from "atom"
 
 // NOTE: due to a bug in how TypeScript resolves ambient augments,
 // need to be more specific here for TextEditor to keep its "class"
@@ -13,6 +13,13 @@ declare module "atom/src/text-editor" {
     destroy(): void
   }
 }
+
+declare module "atom/src/workspace" {
+  interface Workspace {
+    onDidAddTextEditor(callback: (editor: TextEditor) => void): void
+  }
+}
+
 
 declare module "atom/src/notification" {
   /** Non-public Notification api */
