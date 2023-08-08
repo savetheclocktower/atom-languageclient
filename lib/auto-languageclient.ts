@@ -15,6 +15,7 @@ import CodeHighlightAdapter from "./adapters/code-highlight-adapter"
 import CommandExecutionAdapter from "./adapters/command-execution-adapter"
 import DatatipAdapter from "./adapters/datatip-adapter"
 import DefinitionAdapter from "./adapters/definition-adapter"
+import { atomIdeDiagnosticsToLSDiagnostics } from './adapters/diagnostic-adapter'
 import DocumentSyncAdapter from "./adapters/document-sync-adapter"
 import FindReferencesAdapter from "./adapters/find-references-adapter"
 import IntentionsListAdapter from "./adapters/intentions-list-adapter"
@@ -29,7 +30,6 @@ import * as sa from "./adapters/symbol-adapter"
 import * as ShowDocumentAdapter from "./adapters/show-document-adapter"
 import * as Utils from "./utils"
 import { Socket } from "net"
-import { LanguageClientConnection } from "./languageclient"
 import { ExecuteCommandParams, LanguageClientConnection } from "./languageclient"
 import { ConsoleLogger, FilteredLogger, Logger } from "./logger"
 import {
@@ -44,11 +44,16 @@ import * as ac from "atom/autocomplete-plus"
 import { basename } from "path"
 import type * as codeActions from "./adapters/code-action-adapter"
 import type * as intentions from "./adapters/intentions-list-adapter"
+import type * as lint from "./adapters/linter-push-v2-adapter"
 import type * as symbol from "./adapters/symbol-adapter"
 
-export { ActiveServer, LanguageClientConnection, LanguageServerProcess }
-export type ConnectionType = "stdio" | "socket" | "ipc"
+export {
+  ActiveServer,
+  LanguageClientConnection,
+  LanguageServerProcess
+}
 
+export type ConnectionType = "stdio" | "socket" | "ipc"
 export interface ServerAdapters {
   linterPushV2: LinterPushV2Adapter
   loggingConsole: LoggingConsoleAdapter
@@ -289,10 +294,10 @@ export default class AutoLanguageClient {
   }
 
   /** (Optional) Early wire-up of listeners before initialize method is sent */
-  protected preInitialization(_connection: LanguageClientConnection): void {}
+  protected preInitialization(_connection: LanguageClientConnection): void { }
 
   /** (Optional) Late wire-up of listeners after initialize method has been sent */
-  protected postInitialization(_server: ActiveServer): void {}
+  protected postInitialization(_server: ActiveServer): void { }
 
   /** (Optional) Determine whether to use ipc, stdio or socket to connect to the server */
   protected getConnectionType(): ConnectionType {
@@ -376,7 +381,10 @@ export default class AutoLanguageClient {
   // Default implementation of the rest of the AutoLanguageClient
   // ---------------------------------------------------------------------------
 
-  /** Activate does very little for perf reasons - hooks in via ServerManager for later 'activation' */
+  /**
+   * Activate does very little for perf reasons - hooks in via ServerManager
+   * for later 'activation'
+   */
   public activate(): void {
     this._disposable = new CompositeDisposable()
     this.name = `${this.getLanguageName()} (${this.getServerName()})`
@@ -408,16 +416,26 @@ export default class AutoLanguageClient {
   }
 
   /**
-   * Spawn a general language server. Use this inside the `startServerProcess` override if the language server is a
-   * general executable. Also see the `spawnChildNode` method. If the name is provided as the first argument, it checks
-   * `bin/platform-arch/exeName` by default, and if doesn't exists uses the exe on PATH. For example on Windows x64, by
-   * passing `serve-d`, `bin/win32-x64/exeName.exe` is spawned by default.
+   * Spawn a general language server.
+   *
+   * Use this inside the `startServerProcess` override if the language server
+   * is a general executable, or if it requires a specific version of Node that
+   * may be incompatible with Atom’s version.
+   *
+   * Also see the `spawnChildNode` method.
+   *
+   * If the name is provided as the first argument, it checks
+   * `bin/platform-arch/exeName` by default, and if doesn't exists uses the exe
+   * on PATH. For example on Windows x64, by passing `serve-d`,
+   * `bin/win32-x64/exeName.exe` is spawned by default.
    *
    * @param exe The `name` or `path` of the executable
    * @param args Args passed to spawn the exe. Defaults to `[]`.
    * @param options: Child process spawn options. Defaults to `{}`.
-   * @param rootPath The path of the folder of the exe file. Defaults to `join("bin", `${process.platform}-${process.arch} `)`.
-   * @param exeExtention The extention of the exe file. Defaults to `process.platform === "win32" ? ".exe" : ""`
+   * @param rootPath The path of the folder of the exe file. Defaults to
+   *   `join("bin", `${process.platform}-${process.arch} `)`.
+   * @param exeExtention The extention of the exe file. Defaults to
+   *   `process.platform === "win32" ? ".exe" : ""`
    */
   protected spawn(
     exe: string,
@@ -431,8 +449,12 @@ export default class AutoLanguageClient {
   }
 
   /**
-   * Spawn a language server using Atom's Nodejs process Use this inside the `startServerProcess` override if the
-   * language server is a JavaScript file. Also see the `spawn` method
+   * Spawn a language server using Atom's `node` process.
+   *
+   * Use this inside the `startServerProcess` override if the language server
+   * is a JavaScript file and is compatible with Atom’s version of Node.
+   *
+   * Also see the `spawn` method.
    */
   protected spawnChildNode(args: string[], options: cp.SpawnOptions = {}): LanguageServerProcess {
     this.logger.debug(`starting child Node "${args.join(" ")}"`)
@@ -444,7 +466,10 @@ export default class AutoLanguageClient {
     return cp.spawn(process.execPath, args, options)
   }
 
-  /** LSP logging is only set for warnings & errors by default unless you turn on the core.debugLSP setting */
+  /**
+   * LSP logging is only set for warnings & errors by default unless you turn
+   * on the `core.debugLSP` setting.
+   */
   protected getLogger(): Logger {
     const filter = atom.config.get("core.debugLSP")
       ? FilteredLogger.DeveloperLevelFilter
@@ -452,19 +477,31 @@ export default class AutoLanguageClient {
     return new FilteredLogger(new ConsoleLogger(this.name), filter)
   }
 
-  /** Starts the server by starting the process, then initializing the language server and starting adapters */
+  /**
+   * Starts the server by starting the process, then initializing the language
+   * server and starting adapters.
+   */
   private async startServer(projectPath: string): Promise<ActiveServer> {
     const lsProcess = await this.reportBusyWhile(
       `Starting ${this.getServerName()} for ${path.basename(projectPath)}`,
+      // eslint-disable-next-line require-await
       async () => this.startServerProcess(projectPath)
     )
     this.captureServerErrors(lsProcess, projectPath)
-    const connection = new LanguageClientConnection(this.createRpcConnection(lsProcess), this.logger)
+
+    const connection = new LanguageClientConnection(
+      this.createRpcConnection(lsProcess), this.logger)
     this.preInitialization(connection)
+
     const initializeParams = this.getInitializeParams(projectPath, lsProcess)
     const initialization = connection.initialize(initializeParams)
-    this.reportBusyWhile(`${this.getServerName()} initializing for ${path.basename(projectPath)}`, () => initialization)
+    this.reportBusyWhile(
+      `${this.getServerName()} initializing for ${path.basename(projectPath)}`,
+      () => initialization
+    )
+
     const initializeResponse = await initialization
+
     const newServer = {
       projectPath,
       process: lsProcess,
@@ -474,19 +511,25 @@ export default class AutoLanguageClient {
       additionalPaths: new Set<string>(),
     }
     this.postInitialization(newServer)
+
     connection.initialized()
+
     connection.on("close", () => {
-      if (!this._isDeactivating) {
-        this._serverManager.stopServer(newServer)
-        if (!this._serverManager.hasServerReachedRestartLimit(newServer)) {
-          this.logger.debug(`Restarting language server for project '${newServer.projectPath}'`)
-          this._serverManager.startServer(projectPath)
-        } else {
-          this.logger.warn(`Language server has exceeded auto-restart limit for project '${newServer.projectPath}'`)
-          atom.notifications.addError(
-            `The ${this.name} language server has exited and exceeded the restart limit for project '${newServer.projectPath}'`
-          )
-        }
+      if (this._isDeactivating) return
+
+      this._serverManager.stopServer(newServer)
+      if (!this._serverManager.hasServerReachedRestartLimit(newServer)) {
+        this.logger.debug(
+          `Restarting language server for project '${newServer.projectPath}'`
+        )
+        this._serverManager.startServer(projectPath)
+      } else {
+        this.logger.warn(
+          `Language server has exceeded auto-restart limit for project '${newServer.projectPath}'`
+        )
+        atom.notifications.addError(
+          `The ${this.name} language server has exited because it exceeded the restart limit for project '${newServer.projectPath}'.`
+        )
       }
     })
 
@@ -495,11 +538,8 @@ export default class AutoLanguageClient {
       newServer.disposable.add(
         atom.config.observe(configurationKey, (config) => {
           const mappedConfig = this.mapConfigurationObject(config || {})
-          if (mappedConfig) {
-            connection.didChangeConfiguration({
-              settings: mappedConfig,
-            })
-          }
+          if (!mappedConfig) return
+          connection.didChangeConfiguration({ settings: mappedConfig })
         })
       )
     }
@@ -518,8 +558,8 @@ export default class AutoLanguageClient {
   }
 
   /**
-   * The function called whenever the spawned server `error`s. Extend (call super.onSpawnError) or override this if you
-   * need custom error handling
+   * The function called whenever the spawned server `error`s. Extend (call
+   * super.onSpawnError) or override this if you need custom error handling.
    */
   protected onSpawnError(err: Error): void {
     atom.notifications.addError(
@@ -532,8 +572,8 @@ export default class AutoLanguageClient {
   }
 
   /**
-   * The function called whenever the spawned server `close`s. Extend (call super.onSpawnClose) or override this if you
-   * need custom close handling
+   * The function called whenever the spawned server `close`s. Extend (call
+   * super.onSpawnClose) or override this if you need custom close handling.
    */
   protected onSpawnClose(code: number | null, signal: NodeJS.Signals | null): void {
     if (code !== 0 && signal === null) {
@@ -544,57 +584,68 @@ export default class AutoLanguageClient {
   }
 
   /**
-   * The function called whenever the spawned server `disconnect`s. Extend (call super.onSpawnDisconnect) or override
-   * this if you need custom disconnect handling
+   * The function called whenever the spawned server `disconnect`s. Extend
+   * (call super.onSpawnDisconnect) or override this if you need custom
+   * disconnect handling.
    */
   protected onSpawnDisconnect(): void {
     this.logger.debug(`${this.getServerName()} language server for ${this.getLanguageName()} got disconnected.`)
   }
 
   /**
-   * The function called whenever the spawned server `exit`s. Extend (call super.onSpawnExit) or override this if you
-   * need custom exit handling
+   * The function called whenever the spawned server `exit`s. Extend (call
+   * super.onSpawnExit) or override this if you need custom exit handling.
    */
   protected onSpawnExit(code: number | null, signal: NodeJS.Signals | null): void {
     this.logger.debug(`exit: code ${code} signal ${signal}`)
   }
 
-  /** (Optional) Finds the project path. If there is a custom logic for finding projects override this method. */
+  /**
+   * (Optional) Finds the project path. If there is custom logic for finding
+   * projects, override this method.
+   */
   protected determineProjectPath(textEditor: TextEditor): string | null {
     const filePath = textEditor.getPath()
     // TODO can filePath be null
     if (filePath === null || filePath === undefined) {
       return null
     }
-    const projectPath = this._serverManager.getNormalizedProjectPaths().find((d) => filePath.startsWith(d))
-    if (projectPath !== undefined) {
-      return projectPath
-    }
+    const projectPath = this._serverManager
+      .getNormalizedProjectPaths()
+      .find((d) => filePath.startsWith(d))
+
+    if (projectPath !== undefined) return projectPath
 
     const serverWithClaim = this._serverManager
       .getActiveServers()
       .find((server) => server.additionalPaths?.has(path.dirname(filePath)))
+
     if (serverWithClaim !== undefined) {
       return normalizePath(serverWithClaim.projectPath)
     }
+
     return null
   }
 
   /**
-   * The function called whenever the spawned server returns `data` in `stderr` Extend (call super.onSpawnStdErrData) or
-   * override this if you need custom stderr data handling
+   * The function called whenever the spawned server returns `data` in
+   * `stderr`. Extend (call super.onSpawnStdErrData) or override this if you
+   * need custom stderr data handling.
    */
   protected onSpawnStdErrData(chunk: Buffer, projectPath: string): void {
     const errorString = chunk.toString()
     this.handleServerStderr(errorString, projectPath)
+
     // Keep the last 5 lines for packages to use in messages
-    this.processStdErr = (this.processStdErr + errorString).split("\n").slice(-5).join("\n")
+    this.processStdErr = (this.processStdErr + errorString)
+      .split("\n").slice(-5).join("\n")
   }
 
   /** Creates the RPC connection which can be ipc, socket or stdio */
   private createRpcConnection(lsProcess: LanguageServerProcess): rpc.MessageConnection {
     let reader: rpc.MessageReader
     let writer: rpc.MessageWriter
+
     const connectionType = this.getConnectionType()
     switch (connectionType) {
       case "ipc":
@@ -611,7 +662,7 @@ export default class AutoLanguageClient {
           writer = new rpcNode.StreamMessageWriter(lsProcess.stdin)
         } else {
           this.logger.error(
-            `The language server process for ${this.getLanguageName()} does not have a valid stdin and stdout`
+            `The language server process for ${this.getLanguageName()} does not have a valid stdin and stdout.`
           )
           return Utils.assertUnreachable("stdio" as never)
         }
@@ -621,21 +672,32 @@ export default class AutoLanguageClient {
     }
 
     return rpc.createMessageConnection(reader, writer, {
-      log: (..._args: any[]) => {},
-      warn: (..._args: any[]) => {},
-      info: (..._args: any[]) => {},
+      log: (..._args: any[]) => { },
+      warn: (..._args: any[]) => { },
+      info: (..._args: any[]) => { },
       error: (...args: any[]) => {
         this.logger.error(args)
       },
     })
   }
 
-  /** Start adapters that are not shared between servers */
+  /**
+   * Returns linter configuration settings that your package specifies. These
+   * settings control which diagnosic messages get ignored, among other things.
+   *
+   * @returns A plain object of linter settings
+   */
+  getLinterSettings(): lint.LinterSettings {
+    return ({} as lint.LinterSettings)
+  }
+
   getIgnoreIntentionsForLinterMessage(
     _bundle: intentions.MessageBundle
   ): intentions.Intention[] | null {
     return null
   }
+
+  /** Start adapters that are not shared between servers. */
   private startExclusiveAdapters(server: ActiveServer): void {
     ApplyEditAdapter.attach(server.connection)
     NotificationsAdapter.attach(server.connection, this.name, server.projectPath)
@@ -651,7 +713,7 @@ export default class AutoLanguageClient {
       server.disposable.add(docSyncAdapter)
     }
 
-    const linterPushV2 = new LinterPushV2Adapter(server.connection)
+    let intentionsDelegate: intentions.IntentionsDelegate = {
       ...this.getCodeActionsDelegate(),
       getIgnoreIntentionsForLinterMessage: this.getIgnoreIntentionsForLinterMessage.bind(this)
     }
@@ -661,6 +723,15 @@ export default class AutoLanguageClient {
     this._intentionsManager ??= new IntentionsListAdapter(
       intentionsDelegate
     )
+
+    let linterSettings = this.getLinterSettings()
+    const linterPushV2 = new LinterPushV2Adapter(
+      server.connection,
+      linterSettings,
+      intentionsManager,
+      this.getCodeActionsDelegate()
+    )
+
     if (this._linterDelegate != null) {
       linterPushV2.attach(this._linterDelegate)
     }
@@ -703,11 +774,13 @@ export default class AutoLanguageClient {
   // Autocomplete+ via LS completion---------------------------------------
 
   /**
-   * A method to override to return an array of grammar scopes that should not be used for autocompletion.
+   * A method to override to return an array of grammar scopes that should not
+   * be used for autocompletion.
    *
-   * Usually that's used for disabling autocomplete inside comments,
+   * Usually this is used for disabling autocomplete inside comments.
    *
-   * @example If the grammar scopes are [ '.source.js' ], `getAutocompleteDisabledScopes` may return [ '.source.js .comment' ].
+   * @example If the grammar scopes are ['.source.js'],
+   * `getAutocompleteDisabledScopes` may return ['.source.js .comment'].
    */
   protected getAutocompleteDisabledScopes(): Array<string> {
     return []
@@ -740,7 +813,7 @@ export default class AutoLanguageClient {
       return []
     }
 
-    this.autoComplete = this.autoComplete || new AutocompleteAdapter()
+    this.autoComplete = this.autoComplete || new AutocompleteAdapter(this.logger)
     this._lastAutocompleteRequest = request
     return this.autoComplete.getSuggestions(
       server,
@@ -767,9 +840,9 @@ export default class AutoLanguageClient {
     _completionItem: ls.CompletionItem,
     _suggestion: ac.AnySuggestion,
     _request: ac.SuggestionsRequestedEvent
-  ): void {}
+  ): void { }
 
-  protected onDidInsertSuggestion(_arg: ac.SuggestionInsertedEvent): void {}
+  protected onDidInsertSuggestion(_arg: ac.SuggestionInsertedEvent): void { }
 
   // Definitions via LS documentHighlight and gotoDefinition------------
   public provideDefinitions(): atomIde.DefinitionProvider {
@@ -809,6 +882,7 @@ export default class AutoLanguageClient {
   }
 
   // Outline View via LS documentSymbol---------------------------------
+
   public provideOutlines(): atomIde.OutlineProvider {
     return {
       name: this.name,
@@ -939,12 +1013,13 @@ export default class AutoLanguageClient {
     return this.callHierarchy.getCallHierarchy(server.connection, editor, point, "outgoing")
   }
 
-  // Linter push v2 API via LS publishDiagnostics
-  public consumeLinterV2(registerIndie: (params: { name: string }) => linter.IndieDelegate): void {
+  // Linter push v2 API via LS publishDiagnostics ------------------------------
+  public consumeLinterV2(
+    registerIndie: (params: { name: string }) => linter.IndieDelegate
+  ): void {
+    this.logger.log('consumeLinterV2', registerIndie)
     this._linterDelegate = registerIndie({ name: this.name })
-    if (this._linterDelegate == null) {
-      return
-    }
+    if (this._linterDelegate == null) { return }
 
     for (const server of this._serverManager.getActiveServers()) {
       const linterPushV2 = this.getServerAdapter(server, "linterPushV2")
@@ -1021,7 +1096,7 @@ export default class AutoLanguageClient {
     }
 
     // No way of detaching from client connections today
-    return new Disposable(() => {})
+    return new Disposable(() => { })
   }
 
   // Code Format via LS formatDocument & formatDocumentRange------------
@@ -1244,7 +1319,7 @@ export default class AutoLanguageClient {
   /**
    * `didChangeWatchedFiles` message filtering, override for custom logic.
    *
-   * @param filePath Path of a file that has changed in the project path
+   * @param _filePath Path of a file that has changed in the project path
    * @returns `false` => message will not be sent to the language server
    */
   protected filterChangeWatchedFiles(_filePath: string): boolean {
@@ -1252,8 +1327,9 @@ export default class AutoLanguageClient {
   }
 
   /**
-   * If this is set to `true` (the default value), the servers will shut down gracefully. If it is set to `false`, the
-   * servers will be killed without awaiting shutdown response.
+   * If this is set to `true` (the default value), the servers will shut down
+   * gracefully. If it is set to `false`, the servers will be killed without
+   * awaiting shutdown response.
    */
   protected shutdownGracefully: boolean = true
 
@@ -1277,7 +1353,7 @@ export default class AutoLanguageClient {
     return adapters && adapters[adapter]
   }
 
-  protected reportBusyWhile: Utils.ReportBusyWhile = async (title, f) => {
+  protected reportBusyWhile: Utils.ReportBusyWhile = (title, f) => {
     if (this.busySignalService) {
       return this.busySignalService.reportBusyWhile(title, f)
     } else {
