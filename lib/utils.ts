@@ -82,7 +82,7 @@ export function assertUnreachable(_: never): never {
 }
 
 export function promiseWithTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolvePromise, reject) => {
     // create a timeout to reject promise if not resolved
     const timer = setTimeout(() => {
       reject(new Error(`Timeout after ${ms}ms`))
@@ -91,7 +91,7 @@ export function promiseWithTimeout<T>(ms: number, promise: Promise<T>): Promise<
     promise
       .then((res) => {
         clearTimeout(timer)
-        resolve(res)
+        resolvePromise(res)
       })
       .catch((err) => {
         clearTimeout(timer)
@@ -119,4 +119,35 @@ export function getExePath(exeName: string, rootPath = rootPathDefault, exeExten
   } else {
     return exeName
   }
+}
+
+function isTextEditor(thing: any): thing is TextEditor {
+  return thing.constructor.name === 'TextEditor'
+}
+
+export function findAllTextEditorsForPath(path: string): TextEditor[] {
+  let panes = atom.workspace.getPanes()
+  let results: TextEditor[] = []
+  for (let pane of panes) {
+    for (let item of pane.getItems()) {
+      if (!isTextEditor(item)) continue
+      if (item.getPath() === path) {
+        results.push(item)
+      }
+    }
+  }
+  return results
+}
+
+export function findFirstTextEditorForPath(path: string): TextEditor | null {
+  let panes = atom.workspace.getPanes()
+  for (let pane of panes) {
+    for (let item of pane.getItems()) {
+      if (!isTextEditor(item)) continue
+      if (item.getPath() === path) {
+        return item
+      }
+    }
+  }
+  return null
 }
