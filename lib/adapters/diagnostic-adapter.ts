@@ -3,21 +3,22 @@ import * as atom from "atom"
 import * as ls from "../languageclient"
 import Convert from "../convert"
 import LinterPushV2Adapter from "./linter-push-v2-adapter"
+import { DiagnosticSeverity } from "../languageclient"
 
 /** @deprecated Use Linter V2 service */
 export type DiagnosticCode = number | string
 
 /** @deprecated Use Linter V2 service */
 export default class IdeDiagnosticAdapter extends LinterPushV2Adapter {
-  private _diagnosticCodes: Map<string, Map<string, DiagnosticCode | null>> = new Map()
-
   /**
-   * Public: Capture the diagnostics sent from a langguage server, convert them to the Linter V2 format and forward them
-   * on to any attached {V2IndieDelegate}s.
+   * Public: Capture the diagnostics sent from a language server, convert them
+   * to the Linter V2 format and forward them on to any attached
+   * {@link V2IndieDelegate}s.
    *
    * @deprecated Use Linter V2 service
-   * @param params The {PublishDiagnosticsParams} received from the language server that should be captured and
-   *   forwarded on to any attached {V2IndieDelegate}s.
+   * @param params The {@link PublishDiagnosticsParams} received from the
+   *   language server that should be captured and
+   *   forwarded on to any attached {@link V2IndieDelegate}s.
    */
   public captureDiagnostics(params: ls.PublishDiagnosticsParams): void {
     const path = Convert.uriToPath(params.uri)
@@ -33,12 +34,11 @@ export default class IdeDiagnosticAdapter extends LinterPushV2Adapter {
   }
 
   /**
-   * Public: get diagnostics for the given linter messages
+   * Public: Get diagnostics for the given linter messages.
    *
    * @deprecated Use Linter V2 service
-   * @param linterMessages An array of linter {V2Message}
    * @param editor
-   * @returns An array of LS {Diagnostic[]}
+   * @returns An array of LS {@link Diagnostic}s.
    */
   public getLSDiagnosticsForIdeDiagnostics(
     diagnostics: atomIde.Diagnostic[],
@@ -48,14 +48,20 @@ export default class IdeDiagnosticAdapter extends LinterPushV2Adapter {
   }
 
   /**
-   * Public: Get the {Diagnostic} that is associated with the given {atomIde.Diagnostic}.
+   * Public: Get the {@link Diagnostic} that is associated with the given
+   * {@link atomIde.Diagnostic}.
    *
    * @deprecated Use Linter V2 service
-   * @param diagnostic The {atomIde.Diagnostic} object to fetch the {Diagnostic} for.
+   * @param diagnostic The {@link atomIde.Diagnostic} object to fetch the
+   *   {@link Diagnostic} for.
    * @param editor
-   * @returns The associated {Diagnostic}.
+   *
+   * @returns The associated {@link Diagnostic}.
    */
-  public getLSDiagnosticForIdeDiagnostic(diagnostic: atomIde.Diagnostic, editor: atom.TextEditor): ls.Diagnostic {
+  public getLSDiagnosticForIdeDiagnostic(
+    diagnostic: atomIde.Diagnostic,
+    editor: atom.TextEditor
+  ): ls.Diagnostic {
     // Retrieve the stored diagnostic code if it exists.
     // Until the Linter API provides a place to store the code,
     // there's no real way for the code actions API to give it back to us.
@@ -74,7 +80,7 @@ export default class IdeDiagnosticAdapter extends LinterPushV2Adapter {
    * suitable place in the Linter API for them. For now, we'll record the original code for each range/message
    * combination and retrieve it when needed (e.g. for passing back into code actions)
    */
-  private getDiagnosticCode(editor: atom.TextEditor, range: atom.Range, text: string): DiagnosticCode | null {
+  protected getDiagnosticCode(editor: atom.TextEditor, range: atom.Range, text: string): DiagnosticCode | null {
     const path = editor.getPath()
     if (path != null) {
       const diagnosticCodes = this._diagnosticCodes.get(path)
@@ -98,6 +104,10 @@ export function atomIdeDiagnosticToLSDiagnostic(diagnostic: atomIde.Diagnostic):
   }
 }
 
+export function atomIdeDiagnosticsToLSDiagnostics(diagnostics: atomIde.Diagnostic[]): ls.Diagnostic[] {
+  return diagnostics.map(d => atomIdeDiagnosticToLSDiagnostic(d))
+}
+
 /** @deprecated Use Linter V2 service */
 export function diagnosticTypeToLSSeverity(type: atomIde.DiagnosticType): ls.DiagnosticSeverity {
   switch (type) {
@@ -114,4 +124,18 @@ export function diagnosticTypeToLSSeverity(type: atomIde.DiagnosticType): ls.Dia
 
 function getCodeKey(range: atom.Range, text: string): string {
   return ([] as any[]).concat(...range.serialize(), text).join(",")
+}
+
+function lsSeverityToAtomIdeDiagnosticType(severity: DiagnosticSeverity): atomIde.Diagnostic["type"] {
+  switch (severity) {
+    case DiagnosticSeverity.Error:
+      return "Error"
+    case DiagnosticSeverity.Warning:
+      return "Warning"
+    case DiagnosticSeverity.Information:
+    case DiagnosticSeverity.Hint:
+      return "Info"
+    default:
+      throw Error(`Unexpected diagnostic severity '${severity}'`)
+  }
 }
