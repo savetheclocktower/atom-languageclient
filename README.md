@@ -50,11 +50,11 @@ The language server protocol consists of a number of capabilities. Some of these
 | completionItem/resolve            | AutoComplete+ (Atom 1.24+)  |
 | textDocument/hover                | Atom-IDE data tips          |
 | textDocument/signatureHelp        | Atom-IDE signature help     |
-| textDocument/definition           | Atom-IDE definitions        |
+| textDocument/definition           | Atom-IDE definitions / `symbols-view-redux` |
 | textDocument/findReferences       | Atom-IDE findReferences     |
 | textDocument/documentHighlight    | Atom-IDE code highlights    |
-| textDocument/documentSymbol       | Atom-IDE outline view       |
-| workspace/symbol                  | TBD                         |
+| textDocument/documentSymbol       | Atom-IDE outline view / `symbols-view-redux` |
+| workspace/symbol                  | `symbols-view-redux`        |
 | textDocument/codeAction           | Atom-IDE code actions       |
 | textDocument/codeLens             | TBD                         |
 | textDocument/formatting           | Format File command         |
