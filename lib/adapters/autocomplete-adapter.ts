@@ -3,6 +3,7 @@ import * as Utils from "../utils"
 import { CancellationTokenSource } from "vscode-jsonrpc"
 import { ActiveServer } from "../server-manager"
 import { ObjectArrayFilterer } from "zadeh"
+import { NullLogger, Logger} from '../logger'
 import {
   CompletionContext,
   CompletionItem,
@@ -54,6 +55,7 @@ type CompletionItemAdjuster = (
 ) => void
 
 class PossiblyResolvedCompletionItem {
+  // eslint-disable-next-line no-useless-constructor, no-empty-function
   constructor(public completionItem: CompletionItem, public isResolved: boolean) {}
 }
 
@@ -72,6 +74,12 @@ export default class AutocompleteAdapter {
   private _suggestionCache: WeakMap<ActiveServer, SuggestionCacheEntry> = new WeakMap()
   private _cancellationTokens: WeakMap<LanguageClientConnection, CancellationTokenSource> = new WeakMap()
 
+  public logger: Logger
+
+  constructor(logger?: Logger) {
+    this.logger = logger || new NullLogger()
+  }
+
   /**
    * Public: Obtain suggestion list for AutoComplete+ by querying the language server using the `textDocument/completion` request.
    *
@@ -79,6 +87,7 @@ export default class AutocompleteAdapter {
    * @param request The {atom$AutocompleteRequest} to satisfy.
    * @param onDidConvertCompletionItem An optional function that takes a {CompletionItem}, an
    *   {atom$AutocompleteSuggestion} and a {atom$AutocompleteRequest} allowing you to adjust converted items.
+   * @param minimumWordLength The user's configured minimum word length.
    * @param shouldReplace The behavior of suggestion acceptance (see {ShouldReplace}).
    * @returns A {Promise} of an {Array} of {atom$AutocompleteSuggestion}s containing the AutoComplete+ suggestions to display.
    */
@@ -89,6 +98,7 @@ export default class AutocompleteAdapter {
     minimumWordLength?: number,
     shouldReplace: ShouldReplace = false
   ): Promise<ac.AnySuggestion[]> {
+    this.logger.log(`getSuggestions:`, request)
     const triggerChars =
       server.capabilities.completionProvider != null
         ? server.capabilities.completionProvider.triggerCharacters || []
@@ -161,6 +171,7 @@ export default class AutocompleteAdapter {
     shouldReplace: ShouldReplace,
     onDidConvertCompletionItem?: CompletionItemAdjuster
   ): Promise<Suggestion[]> {
+    this.logger.log(`getOrBuildSuggestions:`, request)
     const cache = this._suggestionCache.get(server)
 
     const triggerColumn =
@@ -177,11 +188,25 @@ export default class AutocompleteAdapter {
       cache.triggerPoint.isEqual(triggerPoint) &&
       cache.originalBufferPoint.isLessThanOrEqual(request.bufferPosition)
     ) {
-      return Array.from(cache.suggestionMap.keys())
+      this.logger.log(
+        'cache is valid!',
+        !!cache,
+        !cache.isIncomplete,
+        cache.triggerChar,
+        triggerChar,
+        cache.triggerPoint,
+        triggerPoint,
+        cache.originalBufferPoint,
+        request.bufferPosition
+      )
+      let result = Array.from(cache.suggestionMap.keys())
+      this.logger.log('returning cached!', result)
+      return result
     }
 
     // Our cached suggestions can't be used so obtain new ones from the language server
-    const completions = await Utils.doWithCancellationToken(
+    this.logger.log('getting completions!')
+    let completions = await Utils.doWithCancellationToken(
       server.connection,
       this._cancellationTokens,
       (cancellationToken) =>
@@ -196,6 +221,20 @@ export default class AutocompleteAdapter {
 
     // Setup the cache for subsequent filtered results
     const isComplete = completions === null || Array.isArray(completions) || !completions.isIncomplete
+
+    // if (Array.isArray(completions)) {
+    //   completions = completions.map(completion => {
+    //     let { text, filterText } = completion;
+    //     if (text.startsWith(triggerChar)) {
+    //       text = text.substring(triggerChar.length);
+    //     }
+    //     if (filterText.startsWith(triggerChar)) {
+    //       filterText = filterText.substring(triggerChar.length);
+    //     }
+    //     return { ...completion, text, filterText };
+    //   });
+    // }
+
     const suggestionMap = this.completionItemsToSuggestions(
       completions,
       request,
@@ -211,7 +250,9 @@ export default class AutocompleteAdapter {
       suggestionMap,
     })
 
-    return Array.from(suggestionMap.keys())
+    let result = Array.from(suggestionMap.keys())
+    this.logger.log('getOrBuildSuggestions result:', result)
+    return result
   }
 
   /**
@@ -409,14 +450,14 @@ export default class AutocompleteAdapter {
     onDidConvertCompletionItem?: CompletionItemAdjuster
   ): Suggestion {
     AutocompleteAdapter.applyCompletionItemToSuggestion(item, suggestion as TextSuggestion)
-    AutocompleteAdapter.applyTextEditToSuggestion(
-      item.textEdit,
-      request.editor,
-      triggerColumns,
-      request.bufferPosition,
-      suggestion as TextSuggestion,
-      shouldReplace
-    )
+    // AutocompleteAdapter.applyTextEditToSuggestion(
+    //   item.textEdit,
+    //   request.editor,
+    //   triggerColumns,
+    //   request.bufferPosition,
+    //   suggestion as TextSuggestion,
+    //   shouldReplace
+    // )
     AutocompleteAdapter.applySnippetToSuggestion(item, suggestion as SnippetSuggestion)
     if (onDidConvertCompletionItem != null) {
       onDidConvertCompletionItem(item, suggestion as ac.AnySuggestion, request)
@@ -434,7 +475,7 @@ export default class AutocompleteAdapter {
    */
   public static applyCompletionItemToSuggestion(item: CompletionItem, suggestion: TextSuggestion): void {
     suggestion.text = item.insertText || item.label
-    suggestion.filterText = item.filterText || item.label
+    suggestion.filterText = item.label //item.filterText ||
     suggestion.displayText = item.label
     suggestion.type = AutocompleteAdapter.completionKindToSuggestionType(item.kind)
     AutocompleteAdapter.applyDetailsToSuggestion(item, suggestion)
@@ -510,7 +551,7 @@ export default class AutocompleteAdapter {
     const additionalEdits = suggestion.completionItem?.additionalTextEdits
     const buffer = event.editor.getBuffer()
 
-    ApplyEditAdapter.applyEdits(buffer, Convert.convertLsTextEdits(additionalEdits))
+    ApplyEditAdapter.applyEdits(event.editor, Convert.convertLsTextEdits(additionalEdits))
     buffer.groupLastChanges()
   }
 
