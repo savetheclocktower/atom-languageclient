@@ -1,18 +1,42 @@
 {
-  "extends": ["eslint-config-atomic"],
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "plugins": [
+    "@typescript-eslint",
+    "eslint-plugin-import"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
   "ignorePatterns": ["build/", "node_modules/"],
   "rules": {
+    "@typescript-eslint/semi": ["error", "never"],
+    "semi": ["error", "never"],
+    "space-before-function-paren": ["error", {
+      "named": "never",
+      "asyncArrow": "always",
+      "anonymous": "always"
+    }],
     "no-eq-null": "warn",
     "eqeqeq": "warn",
     "no-empty-function": "warn",
-    "class-methods-use-this": "warn",
+    "class-methods-use-this": "off",
     "default-case": "warn",
     "no-new": "warn",
     "no-shadow": "off",
+    "no-eq-null": "off",
+    "no-unused-vars": "off",
+    "no-empty-function": "off",
+    "@typescript-eslint/no-empty-function": "off",
+    "eqeqeq": "off",
+    "prefer-const": "off",
     "@typescript-eslint/no-shadow": "warn",
     "no-invalid-this": "warn",
-    "require-await": "warn",
+    "require-await": "off",
     "no-useless-constructor": "warn",
+    "import/no-deprecated": "error",
     "@typescript-eslint/ban-types": [
       "error",
       {
@@ -27,15 +51,14 @@
         "allowArgumentsExplicitlyTypedAsAny": true
       }
     ],
-    "@typescript-eslint/no-empty-function": "warn",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-unused-vars": [
-      "error",
+      "off",
       {
         "argsIgnorePattern": "^_",
         "varsIgnorePattern": "^_"
       }
     ],
-    "no-console": "error"
+    "no-console": "warn"
   }
 }
