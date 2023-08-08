@@ -14,18 +14,25 @@ export default class CommandExecutionAdapter {
     this.commandsCustomCallbacks.set(command, callback)
   }
 
-  /** Returns a {Promise} */
+  public static executeCommandWithParams(
+    connection: LanguageClientConnection,
+    executeCommandParams: ExecuteCommandParams
+  ): Promise<any | void> {
+    const commandCustomCallback = this.commandsCustomCallbacks.get(executeCommandParams.command)
+
+    return commandCustomCallback !== undefined
+      ? commandCustomCallback(executeCommandParams)
+      : connection.executeCommand(executeCommandParams)
+  }
+
+  /** Returns a {@link Promise} */
   public static executeCommand(
     connection: LanguageClientConnection,
     command: string,
     commandArgs?: any[]
   ): Promise<any | void> {
     const executeCommandParams = CommandExecutionAdapter.createExecuteCommandParams(command, commandArgs)
-    const commandCustomCallback = this.commandsCustomCallbacks.get(command)
-
-    return commandCustomCallback !== undefined
-      ? commandCustomCallback(executeCommandParams)
-      : connection.executeCommand(executeCommandParams)
+    return CommandExecutionAdapter.executeCommandWithParams(connection, executeCommandParams)
   }
 
   private static createExecuteCommandParams(command: string, commandArgs?: any[]): ExecuteCommandParams {
