@@ -11,28 +11,71 @@ import {
   DeleteFile,
   DocumentUri,
 } from "../languageclient"
-import { TextBuffer, TextEditor } from "atom"
+import {
+  DisplayMarker,
+  DisplayMarkerLayer,
+  TextBuffer,
+  TextEditor
+} from "atom"
 import { promises as fsp, Stats } from "fs"
-import * as rimraf from "rimraf"
+import rimraf from "rimraf"
+
+type CodeEdit = {
+  path: string,
+  range: Range,
+  newText: string
+};
 
 /** Public: Adapts workspace/applyEdit commands to editors. */
 export default class ApplyEditAdapter {
-  /** Public: Attach to a {LanguageClientConnection} to receive edit events. */
+  private static _markerLayersForEditors = new WeakMap<TextEditor, DisplayMarkerLayer>()
+
+  /**
+   * Public: Attach to a {@link LanguageClientConnection} to receive edit
+   * events.}
+   * @param connection
+   */
   public static attach(connection: LanguageClientConnection): void {
     connection.onApplyEdit((m) => ApplyEditAdapter.onApplyEdit(m))
   }
 
+  public static findOrCreateMarkerLayerForEditor(editor: TextEditor): DisplayMarkerLayer {
+    let layer = this._markerLayersForEditors.get(editor)
+    if (layer === undefined) {
+      layer = editor.addMarkerLayer({ maintainHistory: true })
+      this._markerLayersForEditors.set(editor, layer)
+    }
+    return layer
+  }
+
   /** Tries to apply edits and reverts if anything goes wrong. Returns the checkpoint, so the caller can revert changes if needed. */
-  public static applyEdits(buffer: TextBuffer, edits: atomIde.TextEdit[]): number {
+  public static applyEdits(editor: TextEditor, edits: atomIde.TextEdit[]): number {
+    let buffer = editor.getBuffer()
     const checkpoint = buffer.createCheckpoint()
     try {
-      // Sort edits in reverse order to prevent edit conflicts.
-      edits.sort((edit1, edit2) => -edit1.oldRange.compare(edit2.oldRange))
-      edits.reduce((previous: atomIde.TextEdit | null, current) => {
-        validateEdit(buffer, current, previous)
-        buffer.setTextInRange(current.oldRange, current.newText)
-        return current
-      }, null)
+      let layer = ApplyEditAdapter.findOrCreateMarkerLayerForEditor(editor)
+
+      let markerMap = new Map<atomIde.TextEdit, DisplayMarker>()
+      for (let edit of edits) {
+        let marker = layer.markBufferRange(edit.oldRange)
+        markerMap.set(edit, marker)
+      }
+
+      // Sort edits in reverse order to prevent edit conflicts. (But markers
+      // should also take care of this.)
+      edits.sort(
+        (edit1, edit2) => -edit1.oldRange.compare(edit2.oldRange)
+      )
+      edits.reduce(
+        (previous: atomIde.TextEdit | null, current) => {
+          validateEdit(buffer, current, previous)
+          let marker = markerMap.get(current)
+          if (!marker) throw new Error(`Marker missing range!`)
+          buffer.setTextInRange(marker.getBufferRange(), current.newText)
+          return current
+        },
+        null
+      )
       buffer.groupChangesSinceCheckpoint(checkpoint)
       return checkpoint
     } catch (err) {
@@ -51,24 +94,26 @@ export default class ApplyEditAdapter {
     // Keep checkpoints from all successful buffer edits
     const checkpoints: Array<{ buffer: TextBuffer; checkpoint: number }> = []
 
-    const promises = (workspaceEdit.documentChanges || []).map(async (edit): Promise<void> => {
-      if (!TextDocumentEdit.is(edit)) {
-        return ApplyEditAdapter.handleResourceOperation(edit).catch((err) => {
-          throw Error(`Error during ${edit.kind} resource operation: ${err.message}`)
-        })
+    const promises = (workspaceEdit.documentChanges || []).map(
+      async (edit): Promise<void> => {
+        if (!TextDocumentEdit.is(edit)) {
+          return ApplyEditAdapter.handleResourceOperation(edit).catch((err) => {
+            throw Error(`Error during ${edit.kind} resource operation: ${err.message}`)
+          })
+        }
+        const path = Convert.uriToPath(edit.textDocument.uri)
+        const editor = (await atom.workspace.open(path, {
+          searchAllPanes: true,
+          // Open new editors in the background.
+          activatePane: false,
+          activateItem: false,
+        })) as TextEditor
+        const buffer = editor.getBuffer()
+        const edits = Convert.convertLsTextEdits(edit.edits)
+        const checkpoint = ApplyEditAdapter.applyEdits(editor, edits)
+        checkpoints.push({ buffer, checkpoint })
       }
-      const path = Convert.uriToPath(edit.textDocument.uri)
-      const editor = (await atom.workspace.open(path, {
-        searchAllPanes: true,
-        // Open new editors in the background.
-        activatePane: false,
-        activateItem: false,
-      })) as TextEditor
-      const buffer = editor.getBuffer()
-      const edits = Convert.convertLsTextEdits(edit.edits)
-      const checkpoint = ApplyEditAdapter.applyEdits(buffer, edits)
-      checkpoints.push({ buffer, checkpoint })
-    })
+    )
 
     // Apply all edits or fail and revert everything
     const applied = await Promise.all(promises)
