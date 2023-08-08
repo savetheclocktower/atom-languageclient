@@ -12,10 +12,12 @@ import * as CallHierarchyAdapter from "./adapters/call-hierarchy-adapter"
 import CodeActionAdapter from "./adapters/code-action-adapter"
 import CodeFormatAdapter from "./adapters/code-format-adapter"
 import CodeHighlightAdapter from "./adapters/code-highlight-adapter"
+import CommandExecutionAdapter from "./adapters/command-execution-adapter"
 import DatatipAdapter from "./adapters/datatip-adapter"
 import DefinitionAdapter from "./adapters/definition-adapter"
 import DocumentSyncAdapter from "./adapters/document-sync-adapter"
 import FindReferencesAdapter from "./adapters/find-references-adapter"
+import IntentionsListAdapter from "./adapters/intentions-list-adapter"
 import LinterPushV2Adapter from "./adapters/linter-push-v2-adapter"
 import LoggingConsoleAdapter from "./adapters/logging-console-adapter"
 import NotificationsAdapter from "./adapters/notifications-adapter"
@@ -28,6 +30,7 @@ import * as ShowDocumentAdapter from "./adapters/show-document-adapter"
 import * as Utils from "./utils"
 import { Socket } from "net"
 import { LanguageClientConnection } from "./languageclient"
+import { ExecuteCommandParams, LanguageClientConnection } from "./languageclient"
 import { ConsoleLogger, FilteredLogger, Logger } from "./logger"
 import {
   LanguageServerProcess,
@@ -39,6 +42,8 @@ import {
 import { Disposable, CompositeDisposable, Point, Range, TextEditor } from "atom"
 import * as ac from "atom/autocomplete-plus"
 import { basename } from "path"
+import type * as codeActions from "./adapters/code-action-adapter"
+import type * as intentions from "./adapters/intentions-list-adapter"
 import type * as symbol from "./adapters/symbol-adapter"
 
 export { ActiveServer, LanguageClientConnection, LanguageServerProcess }
@@ -62,6 +67,7 @@ export interface ServerAdapters {
 export default class AutoLanguageClient {
   private _disposable!: CompositeDisposable
   private _serverManager!: ServerManager
+  private _intentionsManager?: IntentionsListAdapter
   private _consoleDelegate?: atomIde.ConsoleService
   private _linterDelegate?: linter.IndieDelegate
   private _signatureHelpRegistry?: atomIde.SignatureHelpRegistry
@@ -323,6 +329,29 @@ export default class AutoLanguageClient {
    */
   protected getLanguageIdFromEditor(editor: TextEditor): string {
     return editor.getGrammar().name
+  }
+
+  /**
+   * Override this to give a list of code action kinds for your language server.
+   *
+   * Some code actions are not returned by the server unless they're asked for
+   * by name. You may want to refrain from requesting these actions in certain
+   * circumstances; for instance, if diagnostics are present, you might decide
+   * you want only the code actions that are relevant to those diagnostics.
+   *
+   * @param _editor A text editor.
+   * @param _range An Atom {@link Range}.
+   * @param _diagnostics A collection of language server {@link Diagnostic}
+   *   objects.
+   *
+   * @returns An array of kinds to be used in a code action context.
+   */
+  getKindsForCodeActionRequest(
+    _editor: TextEditor,
+    _range: Range,
+    _diagnostics: ls.Diagnostic[]
+  ): string[] {
+    return []
   }
 
   // Helper methods that are useful for implementors
@@ -602,6 +631,11 @@ export default class AutoLanguageClient {
   }
 
   /** Start adapters that are not shared between servers */
+  getIgnoreIntentionsForLinterMessage(
+    _bundle: intentions.MessageBundle
+  ): intentions.Intention[] | null {
+    return null
+  }
   private startExclusiveAdapters(server: ActiveServer): void {
     ApplyEditAdapter.attach(server.connection)
     NotificationsAdapter.attach(server.connection, this.name, server.projectPath)
@@ -618,6 +652,15 @@ export default class AutoLanguageClient {
     }
 
     const linterPushV2 = new LinterPushV2Adapter(server.connection)
+      ...this.getCodeActionsDelegate(),
+      getIgnoreIntentionsForLinterMessage: this.getIgnoreIntentionsForLinterMessage.bind(this)
+    }
+
+    let intentionsManager = this.findOrCreateIntentionsManager()
+
+    this._intentionsManager ??= new IntentionsListAdapter(
+      intentionsDelegate
+    )
     if (this._linterDelegate != null) {
       linterPushV2.attach(this._linterDelegate)
     }
@@ -785,6 +828,31 @@ export default class AutoLanguageClient {
     return this.outlineView.getOutline(server.connection, editor)
   }
 
+  // Intentions (menu) -------------------------------------------------------
+
+  protected findOrCreateIntentionsManager(): IntentionsListAdapter {
+    if (this._intentionsManager) return this._intentionsManager
+    this._intentionsManager = new IntentionsListAdapter({
+      ...this.getCodeActionsDelegate(),
+      getIgnoreIntentionsForLinterMessage: this.getIgnoreIntentionsForLinterMessage.bind(this)
+    })
+    return this._intentionsManager
+  }
+
+  public provideIntentionsList(): intentions.IntentionsProviderInterface | null {
+    let manager = this.findOrCreateIntentionsManager()
+    if (!manager) return null
+    return {
+      grammarScopes: this.getGrammarScopes(),
+      getIntentions: async (options: intentions.GetIntentionsOptions) => {
+        let { textEditor } = options
+        const server = await this._serverManager.getServer(textEditor)
+        if (!server) return []
+        return manager.getIntentions(options, server.connection)
+      }
+    }
+  }
+
   // Symbol View (file/project/reference) via LS documentSymbol/workspaceSymbol/goToDefinition
   public provideSymbols(): sa.SymbolProvider {
     let adapter = new SymbolAdapter()
@@ -884,6 +952,18 @@ export default class AutoLanguageClient {
         linterPushV2.attach(this._linterDelegate)
       }
     }
+  }
+
+  public async executeCommand(
+    editor: TextEditor,
+    params: ExecuteCommandParams
+  ): Promise<any | void> {
+    const server = await this._serverManager.getServer(editor)
+    if (!server) return
+    return await CommandExecutionAdapter.executeCommandWithParams(
+      server.connection,
+      params
+    )
   }
 
   // Find References via LS findReferences------------------------------
@@ -1049,21 +1129,53 @@ export default class AutoLanguageClient {
       grammarScopes: this.getGrammarScopes(),
       priority: 1,
       getCodeActions: (editor, range, diagnostics) => {
-        return this.getCodeActions(editor, range, diagnostics)
-      },
+        let ideDiagnostics = atomIdeDiagnosticsToLSDiagnostics(diagnostics)
+        return this.getCodeActions(editor, range, ideDiagnostics)
+      }
     }
   }
 
-  protected async getCodeActions(
+  protected getCodeActionsDelegate(): codeActions.CodeActionsDelegate {
+    return {
+      getCodeActions: this.getRawCodeActions.bind(this),
+      filterCodeActions: this.filterCodeActions.bind(this)
+    }
+  }
+
+  protected async getRawCodeActions(
     editor: TextEditor,
     range: Range,
-    diagnostics: atomIde.Diagnostic[]
+    diagnostics: ls.Diagnostic[]
+  ): Promise<(ls.Command | ls.CodeAction)[] | null> {
+    const server = await this._serverManager.getServer(editor)
+    if (server == null || !CodeActionAdapter.canAdapt(server.capabilities)) {
+      return null
+    }
+
+    let kinds = this.getKindsForCodeActionRequest(editor, range, diagnostics)
+    return CodeActionAdapter.getLsCodeActions(
+      server.connection,
+      server.capabilities,
+      this.getServerAdapter(server, "linterPushV2"),
+      editor,
+      range,
+      diagnostics,
+      this.filterCodeActions.bind(this),
+      kinds
+    )
+  }
+
+  public async getCodeActions(
+    editor: TextEditor,
+    range: Range,
+    diagnostics: ls.Diagnostic[]
   ): Promise<atomIde.CodeAction[] | null> {
     const server = await this._serverManager.getServer(editor)
     if (server == null || !CodeActionAdapter.canAdapt(server.capabilities)) {
       return null
     }
 
+    let kinds = this.getKindsForCodeActionRequest(editor, range, diagnostics)
     return CodeActionAdapter.getCodeActions(
       server.connection,
       server.capabilities,
@@ -1072,21 +1184,22 @@ export default class AutoLanguageClient {
       range,
       diagnostics,
       this.filterCodeActions.bind(this),
-      this.onApplyCodeActions.bind(this)
+      this.onApplyCodeActions.bind(this),
+      kinds
     )
   }
 
   /** Optionally filter code action before they're displayed */
-  protected filterCodeActions(actions: (ls.Command | ls.CodeAction)[] | null): (ls.Command | ls.CodeAction)[] | null {
+  public filterCodeActions(actions: (ls.Command | ls.CodeAction)[] | null): (ls.Command | ls.CodeAction)[] | null {
     return actions
   }
 
   /**
-   * Optionally handle a code action before default handling. Return `false` to prevent default handling, `true` to
-   * continue with default handling.
+   * Optionally handle a code action before default handling. Return `false` to
+   * prevent default handling, `true` to continue with default handling.
    */
-  protected async onApplyCodeActions(_action: ls.Command | ls.CodeAction): Promise<boolean> {
-    return true
+  protected onApplyCodeActions(_action: ls.Command | ls.CodeAction): Promise<boolean> {
+    return Promise.resolve(true)
   }
 
   public provideRefactor(): atomIde.RefactorProvider {
