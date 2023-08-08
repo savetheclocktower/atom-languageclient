@@ -24,10 +24,11 @@
     "test.lint": "eslint .",
     "watch": "npm run compile -- --watch",
     "patch": "patch-package",
-    "postinstall": "ls node_modules && ./node_modules/.bin/patch-package"
+    "postinstall": "npm run patch"
   },
   "dependencies": {
     "atom-ide-base": "^3.3.0",
+    "patch-package": "^8.0.0",
     "rimraf": "^3.0.2",
     "vscode-jsonrpc": "6.0.0",
     "vscode-languageserver-protocol": "3.16.0",
@@ -46,7 +47,6 @@
     "eslint-config-airbnb": "^19.0.4",
     "eslint-plugin-import": "^2.25.3",
     "eslint-plugin-jsx-a11y": "^6.5.1",
-    "patch-package": "^8.0.0",
     "shx": "^0.3.3",
     "spawk": "^1.7.1",
     "standard-language-server": "^0.1.0",
