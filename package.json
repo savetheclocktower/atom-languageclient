@@ -24,7 +24,7 @@
     "test.lint": "eslint .",
     "watch": "npm run compile -- --watch",
     "patch": "patch-package",
-    "postinstall": "pwd && ./node_modules/.bin/patch-package"
+    "postinstall": "ls node_modules && ./node_modules/.bin/patch-package"
   },
   "dependencies": {
     "atom-ide-base": "^3.3.0",
