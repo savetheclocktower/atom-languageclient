@@ -692,7 +692,8 @@ export default class AutoLanguageClient {
   }
 
   getIgnoreIntentionsForLinterMessage(
-    _bundle: intentions.MessageBundle
+    _bundle: intentions.MessageBundle,
+    _editor: TextEditor
   ): intentions.Intention[] | null {
     return null
   }

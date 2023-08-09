@@ -43,7 +43,7 @@ export type MessageBundle = {
 }
 
 export type IntentionsDelegate = {
-  getIgnoreIntentionsForLinterMessage(bundle: MessageBundle): Intention[] | null,
+  getIgnoreIntentionsForLinterMessage(bundle: MessageBundle, editor: TextEditor): Intention[] | null,
 } & CodeActionsDelegate
 
 class RangeMap<T> extends Map<Range, T> {
@@ -169,7 +169,7 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
     if (intentionsList) {
       let bundles = intentionsList.getLinterMessagesForBufferPosition(bufferPosition)
       for (let bundle of bundles) {
-        let ignoreIntentions = this.delegate.getIgnoreIntentionsForLinterMessage(bundle)
+        let ignoreIntentions = this.delegate.getIgnoreIntentionsForLinterMessage(bundle, textEditor)
         if (ignoreIntentions) results.push(...ignoreIntentions)
       }
     }

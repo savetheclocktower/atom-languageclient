@@ -163,7 +163,7 @@ export default class LinterPushV2Adapter {
     path: string,
     isModified: boolean,
     diag: Diagnostic,
-    settings: LinterSettingsObject
+    settings: LinterSettingsObject = {}
   ): linter.Message | null {
     let {
       ignoredCodes = [],
