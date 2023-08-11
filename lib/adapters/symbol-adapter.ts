@@ -64,7 +64,8 @@ export type SymbolMeta = {
   signal?: AbortSignal,
   editor: TextEditor,
   type: string,
-  query?: string
+  query?: string,
+  range?: AtomRange
 }
 
 export type SymbolProvider = {
@@ -245,15 +246,17 @@ export default class SymbolAdapter {
     let editor = meta.editor
     let connection = server.connection
 
-    let query = editor.getLastSelection()?.getText() ||
-      editor.getWordUnderCursor() || null
+    let query = meta.query || (editor.getLastSelection()?.getText() ||
+      editor.getWordUnderCursor() || null)
 
     if (query === null) return []
+
+    let position = meta.range?.start ?? editor.getLastCursor().getBufferPosition()
 
     let results = await connection.gotoDefinition(
       {
         textDocument: Convert.editorToTextDocumentIdentifier(editor),
-        position: Convert.pointToPosition(editor.getLastCursor().getBufferPosition())
+        position: Convert.pointToPosition(position)
       }
     )
 
