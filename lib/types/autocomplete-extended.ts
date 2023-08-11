@@ -16,7 +16,7 @@ export interface SuggestionBase extends ac.SuggestionBase {
    * String representing the replacement prefix from the suggestion's custom start point to the original buffer position
    * the suggestion was gathered from.
    */
-  customReplacmentPrefix?: string
+  customReplacementPrefix?: string
 
   /** Original completion item, if available */
   completionItem?: CompletionItem

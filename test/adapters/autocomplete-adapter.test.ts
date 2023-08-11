@@ -494,7 +494,7 @@ describe("AutoCompleteAdapter", () => {
         expect(results[0].displayText).toBe("align")
         expect((results[0] as TextSuggestion).text).toBe("hello world")
         expect(results[0].replacementPrefix).toBe("#align")
-        expect((results[0] as TextSuggestion).customReplacmentPrefix).toBe("#align")
+        expect((results[0] as TextSuggestion).customReplacementPrefix).toBe("#align")
       })
 
       describe("applies the change if shouldReplace is true", () => {
@@ -520,7 +520,7 @@ describe("AutoCompleteAdapter", () => {
           expect(results[0].displayText).toBe("align")
           expect((results[0] as TextSuggestion).text).toBe("hello world")
           expect(results[0].replacementPrefix).toBe("o #align")
-          expect((results[0] as TextSuggestion).customReplacmentPrefix).toBe("o #align")
+          expect((results[0] as TextSuggestion).customReplacementPrefix).toBe("o #align")
         })
 
         it("2", async () => {
@@ -545,7 +545,7 @@ describe("AutoCompleteAdapter", () => {
           expect(results2[0].displayText).toBe("align")
           expect((results2[0] as TextSuggestion).text).toBe("hello world")
           expect(results2[0].replacementPrefix).toBe("oo #align")
-          expect((results2[0] as TextSuggestion).customReplacmentPrefix).toBe("oo #align")
+          expect((results2[0] as TextSuggestion).customReplacementPrefix).toBe("oo #align")
         })
 
         it("3", async () => {
@@ -570,7 +570,7 @@ describe("AutoCompleteAdapter", () => {
           expect(results3[0].displayText).toBe("align")
           expect((results3[0] as TextSuggestion).text).toBe("hello world")
           expect(results3[0].replacementPrefix).toBe(" #align")
-          expect((results3[0] as TextSuggestion).customReplacmentPrefix).toBe(" #align")
+          expect((results3[0] as TextSuggestion).customReplacementPrefix).toBe(" #align")
         })
 
         it("4", async () => {
@@ -595,7 +595,7 @@ describe("AutoCompleteAdapter", () => {
           expect(results4[0].displayText).toBe("align")
           expect((results4[0] as TextSuggestion).text).toBe("hello world")
           expect(results4[0].replacementPrefix).toBe("")
-          expect((results4[0] as any).customReplacmentPrefix).toBe(undefined)
+          expect((results4[0] as any).customReplacementPrefix).toBe(undefined)
         })
       })
 
@@ -664,7 +664,7 @@ describe("AutoCompleteAdapter", () => {
           expect(results[0].displayText).toBe("align")
           expect((results[0] as TextSuggestion).text).toBe("hello world")
           expect(results[0].replacementPrefix).toBe("o #align")
-          expect((results[0] as TextSuggestion).customReplacmentPrefix).toBe("o #align")
+          expect((results[0] as TextSuggestion).customReplacementPrefix).toBe("o #align")
         })
 
         it("2", async () => {
@@ -689,7 +689,7 @@ describe("AutoCompleteAdapter", () => {
           expect(results2[0].displayText).toBe("align")
           expect((results2[0] as TextSuggestion).text).toBe("hello world")
           expect(results2[0].replacementPrefix).toBe("oo #align")
-          expect((results2[0] as TextSuggestion).customReplacmentPrefix).toBe("oo #align")
+          expect((results2[0] as TextSuggestion).customReplacementPrefix).toBe("oo #align")
         })
 
         it("3", async () => {
@@ -714,7 +714,7 @@ describe("AutoCompleteAdapter", () => {
           expect(results3[0].displayText).toBe("align")
           expect((results3[0] as TextSuggestion).text).toBe("hello world")
           expect(results3[0].replacementPrefix).toBe("lign")
-          expect((results3[0] as TextSuggestion).customReplacmentPrefix).toBe("lign")
+          expect((results3[0] as TextSuggestion).customReplacementPrefix).toBe("lign")
         })
 
         it("4", async () => {
@@ -739,7 +739,7 @@ describe("AutoCompleteAdapter", () => {
           expect(results4[0].displayText).toBe("align")
           expect((results4[0] as TextSuggestion).text).toBe("hello world")
           expect(results4[0].replacementPrefix).toBe("")
-          expect((results4[0] as any).customReplacmentPrefix).toBe(undefined)
+          expect((results4[0] as any).customReplacementPrefix).toBe(undefined)
         })
       })
     })
