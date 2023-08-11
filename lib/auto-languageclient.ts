@@ -99,6 +99,7 @@ export default class AutoLanguageClient {
   protected definitions?: DefinitionAdapter
   protected findReferences?: FindReferencesAdapter
   protected outlineView?: OutlineViewAdapter
+  protected symbolProvider?: SymbolAdapter
 
   // You must implement these so we know how to deal with your language and server
   // -------------------------------------------------------------------------
@@ -981,8 +982,7 @@ export default class AutoLanguageClient {
         let server = await this._serverManager.getServer(meta.editor)
         if (!server) return []
 
-        let currentSettings = this.getSymbolSettings()
-        return adapter.getSymbols(server, meta, currentSettings)
+        return adapter.getSymbols(server, meta, settings)
       }
     }
   }
@@ -990,10 +990,12 @@ export default class AutoLanguageClient {
   /**
    * Override to provide settings from your own package.
    *
+   * @param editor An instance of a text editor.
+   *
    * @returns An object of key/value pairs that control aspects of symbol
    *   retrieval and display.
    */
-  getSymbolSettings(): symbol.SymbolSettings {
+  getSymbolSettings(editor: TextEditor): symbol.SymbolSettings {
     return ({} as symbol.SymbolSettings)
   }
 

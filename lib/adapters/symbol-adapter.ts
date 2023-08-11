@@ -47,7 +47,12 @@ export type SymbolSettings = {
    * The minimum number of charcters the user must type on a project search
    * before this provider will return any results.
    */
-  minimumQueryLength?: number
+  minimumQueryLength?: number,
+
+  /**
+   * Whether this adapter is enabled for a given context.
+   */
+  enable?: true
 }
 
 export type ServerPromise = ReturnType<ServerManager['getServer']>
