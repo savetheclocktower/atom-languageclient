@@ -30,7 +30,11 @@ import * as sa from "./adapters/symbol-adapter"
 import * as ShowDocumentAdapter from "./adapters/show-document-adapter"
 import * as Utils from "./utils"
 import { Socket } from "net"
-import { ExecuteCommandParams, LanguageClientConnection } from "./languageclient"
+import {
+  Diagnostic,
+  ExecuteCommandParams,
+  LanguageClientConnection
+} from "./languageclient"
 import { ConsoleLogger, FilteredLogger, Logger } from "./logger"
 import {
   LanguageServerProcess,
@@ -691,6 +695,10 @@ export default class AutoLanguageClient {
     return ({} as lint.LinterSettings)
   }
 
+  shouldIgnoreMessage(_diag: Diagnostic, _editor: TextEditor, _range: Range): boolean {
+    return false
+  }
+
   getIgnoreIntentionsForLinterMessage(
     _bundle: intentions.MessageBundle,
     _editor: TextEditor
@@ -730,7 +738,12 @@ export default class AutoLanguageClient {
       server.connection,
       linterSettings,
       intentionsManager,
-      this.getCodeActionsDelegate()
+      {
+        ...this.getCodeActionsDelegate(),
+        shouldIgnoreMessage: (...args) => {
+          return this.shouldIgnoreMessage(...args)
+        }
+      }
     )
 
     if (this._linterDelegate != null) {
@@ -873,7 +886,8 @@ export default class AutoLanguageClient {
 
     if (query !== null && server.additionalPaths !== undefined) {
       // populate additionalPaths based on definitions
-      // Indicates that the language server can support LSP functionality for out of project files indicated by `textDocument/definition` responses.
+      // Indicates that the language server can support LSP functionality for
+      // out-of-project files indicated by `textDocument/definition` responses.
       for (const def of query.definitions) {
         considerAdditionalPath(server as ActiveServer & { additionalPaths: Set<string> }, path.dirname(def.path))
       }
@@ -930,8 +944,8 @@ export default class AutoLanguageClient {
 
   // Symbol View (file/project/reference) via LS documentSymbol/workspaceSymbol/goToDefinition
   public provideSymbols(): sa.SymbolProvider {
-    let adapter = new SymbolAdapter()
-    let settings = this.getSymbolSettings()
+    this.symbolProvider ??= new SymbolAdapter()
+    let adapter = this.symbolProvider
 
     return {
       name: this.getServerName(),
@@ -939,6 +953,9 @@ export default class AutoLanguageClient {
       isExclusive: adapter.isExclusive,
 
       canProvideSymbols: async (meta: sa.SymbolMeta): Promise<boolean | number> => {
+        let settings = this.getSymbolSettings(meta.editor)
+        if (!settings.enable) return false
+
         let server = await this._serverManager.getServer(meta.editor)
         if (!server) return false
 
@@ -950,6 +967,7 @@ export default class AutoLanguageClient {
       },
 
       getSymbols: async (meta: sa.SymbolMeta, listController: sa.ListController): Promise<sa.SymbolResponse> => {
+        let settings = this.getSymbolSettings(meta.editor)
         let query = meta.query ?? ''
         let minLength = settings.minimumQueryLength ?? 0
         if (meta.type === 'project' && query.length < minLength) {

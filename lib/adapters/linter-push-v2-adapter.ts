@@ -9,14 +9,13 @@ import {
   DiagnosticRelatedInformation,
   LanguageClientConnection,
   PublishDiagnosticsParams,
-  TextDocumentEdit,
   WorkspaceEdit
 } from "../languageclient"
 import {
   findAllTextEditorsForPath,
   findFirstTextEditorForPath
 } from '../utils'
-import { TextBuffer, TextEditor, Range } from "atom"
+import { TextEditor, Range } from "atom"
 import IntentionsListAdapter from "../adapters/intentions-list-adapter"
 
 import type * as atomIde from "atom-ide-base"
@@ -24,6 +23,7 @@ import * as ls from "../languageclient"
 import type * as codeActions from "../adapters/code-action-adapter"
 
 export type LinterSettingsObject = {
+  enabled?: boolean,
   ignoredCodes?: string[],
   ignoredCodesWhenBufferIsModified?: string[],
   includeMessageCodeInMessageBody?: boolean
@@ -40,7 +40,9 @@ export type DiagnosticCode = number | string
 
 export type LinterMessageSolution = linter.ReplacementSolution | linter.CallbackSolution
 
-const EMPTY = () => {}
+export type LinterDelegate = codeActions.CodeActionsDelegate & {
+  shouldIgnoreMessage(diag: Diagnostic, editor: TextEditor, range: Range): boolean
+}
 
 /**
  * Public: Listen to diagnostics messages from the language server and publish
@@ -78,8 +80,7 @@ export default class LinterPushV2Adapter {
 
   protected _settings: LinterSettings
   protected _intentionsManager?: IntentionsListAdapter
-  protected _codeActionsDelegate?: codeActions.CodeActionsDelegate
-  // protected _recaptureDebouncerMap: WeakMap<TextEditor, NodeJS.Timeout>
+  protected _delegate?: LinterDelegate
 
   /**
    * Public: Create a new {@link LinterPushV2Adapter} that will listen for
@@ -92,15 +93,14 @@ export default class LinterPushV2Adapter {
     connection: LanguageClientConnection,
     settings?: LinterSettings,
     intentionsManager?: IntentionsListAdapter,
-    codeActionsDelegate?: codeActions.CodeActionsDelegate
+    delegate?: LinterDelegate
   ) {
     this._connection = connection
-    this._codeActionsDelegate = codeActionsDelegate
+    this._delegate = delegate
     this._settings = settings ?? ({} as LinterSettings)
     this._intentionsManager = intentionsManager
     this._lastDiagnosticsParamsByEditor = new WeakMap()
     this._editorsWithSaveCallbacks = new WeakSet()
-    // this._recaptureDebouncerMap = new WeakMap()
     connection.onPublishDiagnostics(this.captureDiagnostics.bind(this))
   }
 
@@ -109,8 +109,8 @@ export default class LinterPushV2Adapter {
     range: Range,
     diagnostics: ls.Diagnostic[]
   ): Promise<(ls.Command | ls.CodeAction)[] | null> {
-    if (!this._codeActionsDelegate) return null
-    let codeActions = await this._codeActionsDelegate.getCodeActions(
+    if (!this._delegate) return null
+    let codeActions = await this._delegate.getCodeActions(
       editor, range, diagnostics
     )
     return codeActions
@@ -173,6 +173,10 @@ export default class LinterPushV2Adapter {
 
     let range = Convert.lsRangeToAtomRange(diag.range)
     let editor = findFirstTextEditorForPath(path)
+
+    if (editor && this._delegate?.shouldIgnoreMessage(diag, editor, range)) {
+      return null
+    }
 
     let code = diag.code ? String(diag.code) : null
     if (code) {
