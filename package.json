@@ -18,7 +18,7 @@
     "copy.typings": "shx cp -r ./typings ./build",
     "format": "prettier --write .",
     "lint": "eslint . --fix",
-    "prepare": "npm run clean && npm run compile",
+    "prepare": "npm run clean && tsc --version && npm run compile",
     "test": "npm run compile && atom --test build/test",
     "test.format": "prettier . --check",
     "test.lint": "eslint .",
@@ -36,7 +36,7 @@
     "zadeh": "3.0.0-beta.4"
   },
   "devDependencies": {
-    "@types/atom": "1.40.11",
+    "@types/atom": "1.40.12",
     "@types/jasmine": "^4.0.0",
     "@types/node": "^17.0.0",
     "@types/rimraf": "^3.0.2",
