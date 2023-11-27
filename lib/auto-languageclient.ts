@@ -692,8 +692,8 @@ export default class AutoLanguageClient {
    *
    * @returns A plain object of linter settings
    */
-  getLinterSettings(): lint.LinterSettings {
-    return ({} as lint.LinterSettings)
+  getLinterSettings(_editor: TextEditor): lint.LinterSettingsObject {
+    return ({} as lint.LinterSettingsObject)
   }
 
   shouldIgnoreMessage(_diag: Diagnostic, _editor: TextEditor, _range: Range): boolean {
@@ -734,10 +734,9 @@ export default class AutoLanguageClient {
       intentionsDelegate
     )
 
-    let linterSettings = this.getLinterSettings()
     const linterPushV2 = new LinterPushV2Adapter(
       server.connection,
-      linterSettings,
+      (editor) => this.getLinterSettings(editor),
       intentionsManager,
       {
         ...this.getCodeActionsDelegate(),
@@ -978,6 +977,8 @@ export default class AutoLanguageClient {
             emptyMessage: `Query must be at least ${minLength} ${noun} long.`
           })
           return []
+        } else {
+          listController.set({ emptyMessage: `No results.` })
         }
         let server = await this._serverManager.getServer(meta.editor)
         if (!server) return []
