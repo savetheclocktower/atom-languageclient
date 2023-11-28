@@ -696,11 +696,17 @@ export default class AutoLanguageClient {
     return ({} as lint.LinterSettingsObject)
   }
 
+  /**
+   * A callback for allowing a package to ignore a linter message according to
+   * arbitrary criteria.
+   *
+   * @returns A boolean
+   */
   shouldIgnoreMessage(_diag: Diagnostic, _editor: TextEditor, _range: Range): boolean {
     return false
   }
 
-  getIgnoreIntentionsForLinterMessage(
+  getIntentionsForLinterMessage(
     _bundle: intentions.MessageBundle,
     _editor: TextEditor
   ): intentions.Intention[] | null {
@@ -725,7 +731,7 @@ export default class AutoLanguageClient {
 
     let intentionsDelegate: intentions.IntentionsDelegate = {
       ...this.getCodeActionsDelegate(),
-      getIgnoreIntentionsForLinterMessage: this.getIgnoreIntentionsForLinterMessage.bind(this)
+      getIntentionsForLinterMessage: this.getIntentionsForLinterMessage.bind(this)
     }
 
     let intentionsManager = this.findOrCreateIntentionsManager()
@@ -923,7 +929,7 @@ export default class AutoLanguageClient {
     if (this._intentionsManager) return this._intentionsManager
     this._intentionsManager = new IntentionsListAdapter({
       ...this.getCodeActionsDelegate(),
-      getIgnoreIntentionsForLinterMessage: this.getIgnoreIntentionsForLinterMessage.bind(this)
+      getIntentionsForLinterMessage: this.getIntentionsForLinterMessage.bind(this)
     })
     return this._intentionsManager
   }
