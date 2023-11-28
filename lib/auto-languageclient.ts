@@ -64,6 +64,10 @@ export interface ServerAdapters {
   signatureHelpAdapter?: SignatureHelpAdapter
 }
 
+export type EnhancedRefactorProvider = atomIde.RefactorProvider & {
+  prepareRename?(editor: TextEditor, position: Point): Promise<Range | boolean | null>
+}
+
 /**
  * Public: AutoLanguageClient provides a simple way to have all the supported Atom-IDE services wired up entirely for
  * you by just subclassing it and implementing at least
@@ -1320,11 +1324,12 @@ export default class AutoLanguageClient {
     return Promise.resolve(true)
   }
 
-  public provideRefactor(): atomIde.RefactorProvider {
+  public provideRefactor(): EnhancedRefactorProvider {
     return {
       grammarScopes: this.getGrammarScopes(),
       priority: 1,
       rename: this.getRename.bind(this),
+      prepareRename: this.getPrepareRename.bind(this)
     }
   }
 
@@ -1339,6 +1344,18 @@ export default class AutoLanguageClient {
     }
 
     return RenameAdapter.getRename(server.connection, editor, position, newName)
+  }
+
+  protected async getPrepareRename(
+    editor: TextEditor,
+    position: Point
+  ): Promise<Range | boolean | null> {
+    const server = await this._serverManager.getServer(editor)
+    if (server == null || !RenameAdapter.canAdaptPrepare(server.capabilities)) {
+      return null
+    }
+
+    return RenameAdapter.getPrepareRename(server.connection, editor, position)
   }
 
   public consumeSignatureHelp(registry: atomIde.SignatureHelpRegistry): Disposable {

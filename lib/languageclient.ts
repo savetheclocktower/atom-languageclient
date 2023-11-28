@@ -517,13 +517,39 @@ export class LanguageClientConnection extends EventEmitter {
   /**
    * Public: Send a `textDocument/rename` request.
    *
-   * @param params The {RenameParams} identifying the document containing the symbol to be renamed, as well as the
-   *   position and new name.
-   * @returns A {Promise} containing an {WorkspaceEdit} that contains a list of {TextEdit}s either on the changes
-   *   property (keyed by uri) or the documentChanges property containing an {Array} of {TextDocumentEdit}s (preferred).
+   * @param params The {@link RenameParams} identifying the document containing
+   *   the symbol to be renamed, as well as the position and new name.
+   * @returns A {@link Promise} containing a {@link WorkspaceEdit} that contains
+   *   a list of {@link TextEdit}s either on the changes property (keyed by uri)
+   *   or the documentChanges property containing an array of {@link
+   *   TextDocumentEdit}s (preferred).
    */
   public rename(params: lsp.RenameParams): Promise<lsp.WorkspaceEdit | null> {
     return this._sendRequest(lsp.RenameRequest.type, params)
+  }
+
+  /**
+   * Public: Send a `textDocument/prepareRename` request.
+   *
+   * @param params The {PrepareRenameParams} identifying the document containing the symbol to be renamed, as well as the
+   *   position.
+   * @returns A {@link Promise} containing a {@link Range}, possibly with a
+   *   suggested placeholder phrase for renaming.
+   *
+   *   May instead return an object with a `defaultBehavior` property which, if
+   *   `true`, means that the client should use its default behavior to compute
+   *   the rename range.
+   *
+   *   May also return `null`, in which case a rename request would not be
+   *   valid at the given location.
+   */
+  public prepareRename(params: lsp.PrepareRenameParams) : Promise<
+    lsp.Range |
+    { range: lsp.Range, placeholder: string } |
+    { defaultBehavior: boolean } |
+    null
+  > {
+    return this._sendRequest(lsp.PrepareRenameRequest.type, params)
   }
 
   /**
