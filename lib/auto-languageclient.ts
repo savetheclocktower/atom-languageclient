@@ -942,9 +942,24 @@ export default class AutoLanguageClient {
     }
   }
 
+  /**
+   * A callback for allowing a package to control whether a symbol is shown in
+   * a list. Override this method to apply arbitrary criteria for ignoring
+   * certain symbols.
+   *
+   * @returns A boolean
+   */
+  shouldIgnoreSymbol(_symbol: symbol, _editor: TextEditor): boolean {
+    return false
+  }
+
   // Symbol View (file/project/reference) via LS documentSymbol/workspaceSymbol/goToDefinition
   public provideSymbols(): sa.SymbolProvider {
-    this.symbolProvider ??= new SymbolAdapter()
+    this.symbolProvider ??= new SymbolAdapter(undefined, {
+      shouldIgnoreSymbol(symbol: symbol.SymbolEntry, editor: TextEditor) {
+        return this.shouldIgnoreSymbol(symbol, editor)
+      }
+    })
     let adapter = this.symbolProvider
 
     return {
@@ -996,7 +1011,7 @@ export default class AutoLanguageClient {
    * @returns An object of key/value pairs that control aspects of symbol
    *   retrieval and display.
    */
-  getSymbolSettings(editor: TextEditor): symbol.SymbolSettings {
+  getSymbolSettings(_editor: TextEditor): symbol.SymbolSettings {
     return ({} as symbol.SymbolSettings)
   }
 
