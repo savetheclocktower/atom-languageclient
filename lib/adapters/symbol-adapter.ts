@@ -431,6 +431,6 @@ export default class SymbolAdapter {
       }
     }
 
-    return results
+    return filteredResults
   }
 }
