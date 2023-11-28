@@ -24,8 +24,6 @@ import type * as codeActions from "../adapters/code-action-adapter"
 
 export type LinterSettingsObject = {
   enabled?: boolean,
-  ignoredCodes?: string[],
-  ignoredCodesWhenBufferIsModified?: string[],
   includeMessageCodeInMessageBody?: boolean
 }
 
@@ -136,12 +134,6 @@ export default class LinterPushV2Adapter {
     return this._settings
   }
 
-  protected bufferIsModified(path: string): boolean {
-    let editor = findFirstTextEditorForPath(path)
-    if (!editor) return false
-    return editor.getBuffer().isModified()
-  }
-
   addIntentionsForLinterMessage(path: string, message: linter.Message, code: string, diag: Diagnostic): void {
     if (!this._intentionsManager) return
 
@@ -154,20 +146,16 @@ export default class LinterPushV2Adapter {
    * linter service, or returns null if the message should be ignored.
    *
    * @param path The path to the file referenced by this message.
-   * @param isModified Whether the buffer is modified.
    * @param diag The diagnostic message.
    * @param settings Settings for the linter.
    * @returns Either a linter message object or null.
    */
   protected transformOrIgnoreDiagnosticMessage(
     path: string,
-    isModified: boolean,
     diag: Diagnostic,
     settings: LinterSettingsObject = {}
   ): linter.Message | null {
     let {
-      ignoredCodes = [],
-      ignoredCodesWhenBufferIsModified = [],
       includeMessageCodeInMessageBody = false
     } = settings
 
@@ -179,12 +167,6 @@ export default class LinterPushV2Adapter {
     }
 
     let code = diag.code ? String(diag.code) : null
-    if (code) {
-      if (ignoredCodes.includes(code)) return null
-      if (isModified && ignoredCodesWhenBufferIsModified.includes(code)) {
-        return null
-      }
-    }
 
     const linterMessage = lsDiagnosticToV2Message(path, diag)
 
@@ -277,7 +259,6 @@ export default class LinterPushV2Adapter {
       this._intentionsManager?.clearLinterIntentions(editor)
     }
 
-    let isModified = this.bufferIsModified(path)
     const codeMap = new Map<string, Diagnostic>()
     const diagnosticMap = new Map<string, linter.Message>()
     let settings = this.consumeSettings(textEditors[0])
@@ -287,7 +268,7 @@ export default class LinterPushV2Adapter {
     let codeActionRange: Range | null = null
     for (let diagnostic of params.diagnostics) {
       let linterMessage = this.transformOrIgnoreDiagnosticMessage(
-        path, isModified, diagnostic, settings
+        path, diagnostic, settings
       )
       if (!linterMessage) continue
       let { location: { position: range } } = linterMessage
