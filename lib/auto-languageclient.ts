@@ -955,14 +955,14 @@ export default class AutoLanguageClient {
    *
    * @returns A boolean
    */
-  shouldIgnoreSymbol(_symbol: symbol, _editor: TextEditor): boolean {
+  shouldIgnoreSymbol(_symbol: symbol.SymbolEntry, _editor: TextEditor): boolean {
     return false
   }
 
   // Symbol View (file/project/reference) via LS documentSymbol/workspaceSymbol/goToDefinition
   public provideSymbols(): sa.SymbolProvider {
     this.symbolProvider ??= new SymbolAdapter(undefined, {
-      shouldIgnoreSymbol(symbol: symbol.SymbolEntry, editor: TextEditor) {
+      shouldIgnoreSymbol: (symbol: symbol.SymbolEntry, editor: TextEditor) => {
         return this.shouldIgnoreSymbol(symbol, editor)
       }
     })
