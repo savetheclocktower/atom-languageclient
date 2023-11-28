@@ -81,6 +81,11 @@ export type SymbolProvider = {
   isExclusive?: boolean
 }
 
+export type SymbolDelegate = {
+  shouldIgnoreSymbol(symbol: SymbolEntry, editor: TextEditor): boolean
+}
+
+
 export type SymbolResponse = SymbolEntry[]
 
 type RawSymbolList = DocumentSymbol[] | SymbolInformation[] | Location[] | LocationLink[]
@@ -149,6 +154,8 @@ export default class SymbolAdapter {
 
   private _cancellationTokens: WeakMap<LanguageClientConnection, CancellationTokenSource> = new WeakMap()
 
+  private _delegate?: SymbolDelegate
+
   isExclusive: boolean
   logger: Logger
 
@@ -158,8 +165,9 @@ export default class SymbolAdapter {
    *
    * @param logger An instance of {@link Logger}.
    */
-  constructor(logger?: Logger) {
+  constructor(logger?: Logger, _delegate?: SymbolDelegate) {
     this.logger = logger || new NullLogger()
+    this._delegate = _delegate
     this.isExclusive = true
   }
 
@@ -229,7 +237,7 @@ export default class SymbolAdapter {
     )
 
     if (results === null || results.length === 0) return []
-    return this.createSymbols(results, settings)
+    return this.createSymbols(results, editor, settings)
   }
 
   /**
@@ -270,7 +278,7 @@ export default class SymbolAdapter {
       results = [results]
     }
 
-    return this.createSymbols(results as any, settings, query)
+    return this.createSymbols(results as any, editor, settings, query)
   }
 
   /**
@@ -311,7 +319,7 @@ export default class SymbolAdapter {
     )
 
     if (results === null || results.length === 0) return []
-    return this.createSymbols(results, settings)
+    return this.createSymbols(results, editor, settings)
   }
 
   /**
@@ -328,6 +336,7 @@ export default class SymbolAdapter {
    */
   createSymbols(
     symbolResults: RawSymbolList,
+    editor: TextEditor,
     settings: SymbolSettings,
     name?: string
   ): SymbolResponse {
@@ -345,12 +354,14 @@ export default class SymbolAdapter {
           const range = Convert.lsRangeToAtomRange(symbol.selectionRange)
           const position = range.start
 
-          results.push({
+          let result = {
             name: symbol.name,
             position,
             range,
             tag
-          })
+          }
+
+          results.push(result)
 
           if (symbol.children) {
             processSymbols(symbol.children)
@@ -408,6 +419,17 @@ export default class SymbolAdapter {
       if (!pointB) return -1
       return pointA.compare(pointB)
     })
+
+    let filteredResults: SymbolResponse = []
+    if (!this._delegate?.shouldIgnoreSymbol) {
+      filteredResults = results
+    } else {
+      for (let result of results) {
+        if (this._delegate?.shouldIgnoreSymbol(result, editor))
+          continue
+        filteredResults.push(result)
+      }
+    }
 
     return results
   }
