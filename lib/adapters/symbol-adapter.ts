@@ -341,8 +341,6 @@ export default class SymbolAdapter {
     name?: string
   ): SymbolResponse {
     const results: SymbolResponse = []
-    let { ignoredTags = [] } = settings ?? {}
-    ignoredTags = ignoredTags.map(t => t.toLowerCase())
 
     if (Location.is(symbolResults)) return []
 
@@ -350,7 +348,6 @@ export default class SymbolAdapter {
       for (const symbol of symbols) {
         if (DocumentSymbol.is(symbol)) {
           let tag = symbolKindToTag(symbol.kind)
-          if (tag && ignoredTags.includes(tag)) continue
           const range = Convert.lsRangeToAtomRange(symbol.selectionRange)
           const position = range.start
 
@@ -395,7 +392,6 @@ export default class SymbolAdapter {
           let tag = symbolKindToTag(symbol.kind)
           let context = symbol.containerName
 
-          if (tag && ignoredTags.includes(tag)) continue
           results.push({
             name: symbol.name,
             position,
