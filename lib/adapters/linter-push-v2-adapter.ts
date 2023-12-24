@@ -118,7 +118,6 @@ export default class LinterPushV2Adapter {
     if (this._editorsWithSaveCallbacks.has(editor)) return
 
     let disposable = editor.onDidSave(() => {
-      disposable.dispose()
       this.recaptureDiagnosticsForEditor(editor)
     })
 
