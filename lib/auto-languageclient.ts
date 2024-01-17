@@ -51,6 +51,7 @@ import type * as codeActions from "./adapters/code-action-adapter"
 import type * as intentions from "./adapters/intentions-list-adapter"
 import type * as lint from "./adapters/linter-push-v2-adapter"
 import type * as symbol from "./adapters/symbol-adapter"
+import type * as refactor from "./adapters/rename-adapter"
 
 export {
   ActiveServer,
@@ -1351,7 +1352,15 @@ export default class AutoLanguageClient {
     return Promise.resolve(true)
   }
 
-  public provideRefactor(): EnhancedRefactorProvider {
+  public provideRefactor(): atomIde.RefactorProvider {
+    return {
+      grammarScopes: this.getGrammarScopes(),
+      priority: 1,
+      rename: this.getRename.bind(this)
+    }
+  }
+
+  public provideRefactorWithPrepare(): refactor.EnhancedRefactorProvider {
     return {
       grammarScopes: this.getGrammarScopes(),
       priority: 1,
@@ -1406,7 +1415,7 @@ export default class AutoLanguageClient {
   /**
    * `didChangeWatchedFiles` message filtering, override for custom logic.
    *
-   * @param _filePath Path of a file that has changed in the project path
+   * @param {String} _filePath Path of a file that has changed in the project path
    * @returns `false` => message will not be sent to the language server
    */
   protected filterChangeWatchedFiles(_filePath: string): boolean {

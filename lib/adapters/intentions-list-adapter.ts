@@ -95,6 +95,12 @@ class EditorIntentionsList {
   }
 }
 
+/**
+ * An adapter to present a list of contextual options within a source code file.
+ *
+ * @param delegate A bundle of methods from other adapters that help this
+ *   adapter to assemble a menu.
+ */
 export default class IntentionsListAdapter implements IntentionsProviderInterface {
   grammarScopes: string[]
   delegate: IntentionsDelegate
@@ -108,7 +114,10 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
     this.listsByEditor = new WeakMap()
   }
 
-  public async getIntentions(options: GetIntentionsOptions, connection: LanguageClientConnection): Promise<Intention[]> {
+  public async getIntentions(
+    options: GetIntentionsOptions,
+    connection: LanguageClientConnection
+  ): Promise<Intention[]> {
     let { bufferPosition, textEditor } = options
     let intentionsList = this.listsByEditor.get(textEditor)
     let range = new Range(bufferPosition, bufferPosition)
@@ -120,10 +129,10 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
       // We need to figure out the buffer range for which to ask the server for
       // possible code actions.
       //
-      // It's probable, but not certain, that the server will do the right thing
-      // if we just give it a zero-width range consisting of the cursor position.
-      // But if we already know of relevant diagnostic messages, it's only
-      // prudent to widen the range to include them.
+      // It's probable, but not certain, that the server will do the right
+      // thing if we just give it a zero-width range consisting of the cursor
+      // position. But if we already know of relevant diagnostic messages, it's
+      // only prudent to widen the range to include them.
       diagnostics = intentionsList.getDiagnosticsForBufferPosition(bufferPosition)
       codeActionRange = largestRangeForDiagnosticMessages(diagnostics)
     }
@@ -152,25 +161,21 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
       if (!CodeAction.is(action)) continue
       // Don't allow more than one action with the same title. There's no way
       // for the user to tell them apart, even if they happen to do different
-      // things.
+      // things. The first one wins.
       if (actionTitles.has(action.title)) continue
-      let result = convertCodeActionToIntentionListOption(
-        action,
-        connection
-      )
+      let result = convertCodeActionToIntentionListOption(action, connection)
       if (!result) continue
       actionTitles.add(action.title)
       results.push(result)
     }
 
     // Even if the server sent no code actions for the given point, the client
-    // may want to add its own intentions for ignoring the diagnostic
-    // message(s) present at the given buffer position.
+    // may want to add its own intentions at the given buffer position.
     if (intentionsList) {
       let bundles = intentionsList.getLinterMessagesForBufferPosition(bufferPosition)
       for (let bundle of bundles) {
-        let ignoreIntentions = this.delegate.getIntentionsForLinterMessage(bundle, textEditor)
-        if (ignoreIntentions) results.push(...ignoreIntentions)
+        let extraIntentions = this.delegate.getIntentionsForLinterMessage(bundle, textEditor)
+        if (extraIntentions) results.push(...extraIntentions)
       }
     }
 

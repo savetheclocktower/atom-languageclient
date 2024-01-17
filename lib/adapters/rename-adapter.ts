@@ -11,6 +11,12 @@ import {
 } from "../languageclient"
 import * as lsp from "vscode-languageserver-protocol"
 
+// The “enhanced” refactor provider is one that allows the frontend package to
+// take advantage of a “prepare” phase, if the server supports it.
+export type EnhancedRefactorProvider = atomIde.RefactorProvider & {
+  prepareRename?(editor: TextEditor, position: Point): Promise<Range | boolean | null>
+}
+
 export default class RenameAdapter {
   /**
    * Whether the server provides rename support.
