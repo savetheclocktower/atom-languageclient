@@ -138,7 +138,7 @@ export default class AutoLanguageClient {
 
   /** (Optional) Determine whether we should start a server for a given editor if we don't have one yet */
   protected shouldStartForEditor(editor: TextEditor): boolean {
-    return this.getGrammarScopes().includes(editor.getGrammar().scopeName)
+    return this.getGrammarScopes().includes(editor?.getGrammar().scopeName)
   }
 
   /** (Optional) Return the parameters used to initialize a client - you may want to extend capabilities */
@@ -329,20 +329,21 @@ export default class AutoLanguageClient {
    *
    * You can override this like this:
    *
-   *     class MyLanguageClient extends AutoLanguageClient {
-   *       getLanguageIdFromEditor(editor: TextEditor) {
-   *         if (editor.getGrammar().scopeName === "source.myLanguage") {
-   *           return "myCustumLanguageId"
-   *         }
-   *         return super.getLanguageIdFromEditor(editor)
-   *       }
+   * class MyLanguageClient extends AutoLanguageClient {
+   *   getLanguageIdFromEditor(editor: TextEditor) {
+   *     if (editor.getGrammar().scopeName === "source.myLanguage") {
+   *       return "myCustumLanguageId"
    *     }
+   *     return super.getLanguageIdFromEditor(editor)
+   *   }
+   * }
    *
    * @param editor A {TextEditor} which is opened.
-   * @returns A {string} of `languageId` used for `textDocument/didOpen` notification.
+   * @returns A {string} of `languageId` used for `textDocument/didOpen`
+   *   notification.
    */
   protected getLanguageIdFromEditor(editor: TextEditor): string {
-    return editor.getGrammar().name
+    return editor?.getGrammar().name
   }
 
   /**
@@ -1089,7 +1090,7 @@ export default class AutoLanguageClient {
   // Find References via LS findReferences------------------------------
   public provideFindReferences(): atomIde.FindReferencesProvider {
     return {
-      isEditorSupported: (editor: TextEditor) => this.getGrammarScopes().includes(editor.getGrammar().scopeName),
+      isEditorSupported: (editor: TextEditor) => this.getGrammarScopes().includes(editor?.getGrammar().scopeName),
       findReferences: this.getReferences.bind(this),
     }
   }
