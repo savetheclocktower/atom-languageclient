@@ -15,7 +15,7 @@ import {
   findAllTextEditorsForPath,
   findFirstTextEditorForPath
 } from '../utils'
-import { TextEditor, Range } from "atom"
+import { CompositeDisposable, TextEditor, Range } from "atom"
 import IntentionsListAdapter from "../adapters/intentions-list-adapter"
 
 import type * as atomIde from "atom-ide-base"
@@ -30,8 +30,15 @@ export type LinterSettingsObject = {
 const SHOULD_LOAD_SOLUTIONS = false
 const SHOULD_PRELOAD_SOLUTIONS_FOR_EACH_LINTER_MESSAGE = false
 
+/**
+ * A handler for retrieving linter settings. Takes an `editor` param so that
+ * the user can optionally provide scope-specific settings. The `editor`
+ * parameter may be `undefined` — meaning that there is no editor currently
+ * open to process the given diagnostics — in which case the handler _must_
+ * still return settings.
+ */
 export type LinterSettings = LinterSettingsObject |
-  ((editor: TextEditor) => LinterSettingsObject)
+  ((editor: TextEditor | undefined, path: string) => LinterSettingsObject)
 
 /** @deprecated Use Linter V2 service */
 export type DiagnosticCode = number | string
@@ -71,6 +78,8 @@ export default class LinterPushV2Adapter {
   > = new Map()
 
   protected _connection: LanguageClientConnection
+
+  protected _subscriptions: CompositeDisposable = new CompositeDisposable()
 
   protected _indies: Set<linter.IndieDelegate> = new Set()
   protected _lastDiagnosticsParamsByEditor: WeakMap<TextEditor, PublishDiagnosticsParams>
@@ -121,14 +130,15 @@ export default class LinterPushV2Adapter {
       this.recaptureDiagnosticsForEditor(editor)
     })
 
+    this._subscriptions.add(disposable)
     this._editorsWithSaveCallbacks.add(editor)
   }
 
-  protected consumeSettings(editor: TextEditor): LinterSettingsObject {
+  protected consumeSettings(editor: TextEditor, path: string): LinterSettingsObject {
     // The `_settings` object can be a function; this lets a package provide
     // up-to-date config read from the user's own settings.
     if (typeof this._settings === 'function') {
-      return this._settings(editor)
+      return this._settings(editor, path)
     }
     return this._settings
   }
@@ -200,6 +210,9 @@ export default class LinterPushV2Adapter {
       )
     }
 
+    // TODO: If this is changed to a callback that allows the consumer to
+    // transform the linter message, then `atom-languageclient` doesn't need to
+    // know about the `includeMessageCodeInMessageBody` setting.
     if (includeMessageCodeInMessageBody && code) {
       linterMessage.excerpt = `${linterMessage.excerpt} (${code})`
     }
@@ -211,8 +224,12 @@ export default class LinterPushV2Adapter {
     return linterMessage
   }
 
-  /** Dispose this adapter ensuring any resources are freed and events unhooked. */
+  /**
+   * Dispose of this adapter, ensuring any resources are freed and events
+   * unhooked.
+   */
   public dispose(): void {
+    this._subscriptions.dispose()
     this.detachAll()
   }
 
@@ -250,6 +267,14 @@ export default class LinterPushV2Adapter {
    */
   public captureDiagnostics(params: PublishDiagnosticsParams): void {
     const path = Convert.uriToPath(params.uri)
+
+    // We want to know about text editors that are open to this file because:
+    //
+    // (a) We want to consider scope-specific settings, hence need to get
+    //     grammar information.
+    // (b) We want to recapture diagnostics when the buffer is clean. This
+    //     makes it possible for an IDE package to, say, ignore certain
+    //     messages when the buffer is dirty but not when it’s clean.
     let textEditors = findAllTextEditorsForPath(path)
 
     for (let editor of textEditors) {
@@ -260,11 +285,17 @@ export default class LinterPushV2Adapter {
 
     const codeMap = new Map<string, Diagnostic>()
     const diagnosticMap = new Map<string, linter.Message>()
-    let settings = this.consumeSettings(textEditors[0])
+
+    // We know that `textEditors` may be empty, but we proceed anyway. Part of
+    // our contract with the IDE package is that it must return linter settings
+    // to us even when the editor is closed. They can infer the grammar from
+    // the path or simply return settings that may not be scope-specific.
+    let settings = this.consumeSettings(textEditors[0], path)
     let messages: linter.Message[] = []
 
     let retainedDiagnostics: Diagnostic[] = []
     let codeActionRange: Range | null = null
+
     for (let diagnostic of params.diagnostics) {
       let linterMessage = this.transformOrIgnoreDiagnosticMessage(
         path, diagnostic, settings
@@ -283,9 +314,9 @@ export default class LinterPushV2Adapter {
     }
 
     if (SHOULD_LOAD_SOLUTIONS && codeActionRange) {
-      // TODO: Find a language server that returns related diagnostic
-      // information with each code action. That's a requirement for the batch
-      // loading of code actions to work.
+      // TODO: Find a language server to test against that returns related
+      // diagnostic information with each code action. That's a requirement for
+      // the batch loading of code actions to work.
       this.getCodeActions(
         textEditors[0], codeActionRange, retainedDiagnostics
       ).then(
@@ -620,7 +651,7 @@ function getMessageKey(message: linter.Message): string {
 /**
  * Get a unique key for an LSP Diagnostic message.
  *
- * @param message A {@link Diagnostic} object.
+ * @param diagnostic A {@link Diagnostic} object.
  * @returns A unique key.
  */
 function getDiagnosticKey(diagnostic: Diagnostic): string {
@@ -712,8 +743,6 @@ function commandActionToCallbackSolution(
 function callbackToApplyWorkspaceEdits(
   edits: ls.WorkspaceEdit[]
 ): linter.CallbackSolution['apply'] | null {
-  let callbacks: (() => void)[] = []
-
   let workspaceEdits: ls.WorkspaceEdit[] = []
   for (let arg of edits) {
     if (!WorkspaceEdit.is(arg)) continue

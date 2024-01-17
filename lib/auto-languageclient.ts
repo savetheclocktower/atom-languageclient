@@ -734,21 +734,12 @@ export default class AutoLanguageClient {
       server.disposable.add(docSyncAdapter)
     }
 
-    let intentionsDelegate: intentions.IntentionsDelegate = {
-      ...this.getCodeActionsDelegate(),
-      getIntentionsForLinterMessage: this.getIntentionsForLinterMessage.bind(this)
-    }
-
-    let intentionsManager = this.findOrCreateIntentionsManager()
-
-    this._intentionsManager ??= new IntentionsListAdapter(
-      intentionsDelegate
-    )
+    this._intentionsManager = this.findOrCreateIntentionsManager()
 
     const linterPushV2 = new LinterPushV2Adapter(
       server.connection,
-      (editor) => this.getLinterSettings(editor),
-      intentionsManager,
+      (editor, filePath) => this.getLinterSettings(editor, filePath),
+      this._intentionsManager,
       {
         ...this.getCodeActionsDelegate(),
         shouldIgnoreMessage: (...args) => {
@@ -932,8 +923,14 @@ export default class AutoLanguageClient {
 
   protected findOrCreateIntentionsManager(): IntentionsListAdapter {
     if (this._intentionsManager) return this._intentionsManager
+
+    // The intentions delegate manages some tasks that intentions would care
+    // about. Intentions can act as an interface both to code actions
+    // (non-urgent code changes) and diagnostic message code changes (which
+    // could solve problems).
     this._intentionsManager = new IntentionsListAdapter({
-      ...this.getCodeActionsDelegate(),
+      getCodeActions: this.getRawCodeActions.bind(this),
+      filterCodeActions: this.filterCodeActions.bind(this),
       getIntentionsForLinterMessage: this.getIntentionsForLinterMessage.bind(this)
     })
     return this._intentionsManager
