@@ -692,19 +692,20 @@ export default class AutoLanguageClient {
 
   /**
    * Returns linter configuration settings that your package specifies. These
-   * settings control which diagnosic messages get ignored, among other things.
+   * settings control whether linter features altogether are enabled, among
+   * other things.
    *
    * @returns A plain object of linter settings
    */
-  getLinterSettings(_editor: TextEditor): lint.LinterSettingsObject {
-    return ({} as lint.LinterSettingsObject)
+  getLinterSettings(_editor: TextEditor | undefined, _path: string): lint.LinterSettingsObject {
+    return ({ enable: true } as lint.LinterSettingsObject)
   }
 
   /**
    * A callback for allowing a package to ignore a linter message according to
    * arbitrary criteria.
    *
-   * @returns A boolean
+   * @returns Whether a given linter message should be ignored.
    */
   shouldIgnoreMessage(_diag: Diagnostic, _editor: TextEditor, _range: Range): boolean {
     return false
@@ -1016,13 +1017,13 @@ export default class AutoLanguageClient {
   /**
    * Override to provide settings from your own package.
    *
-   * @param editor An instance of a text editor.
+   * @param _editor An instance of a text editor.
    *
    * @returns An object of key/value pairs that control aspects of symbol
    *   retrieval and display.
    */
   getSymbolSettings(_editor: TextEditor): symbol.SymbolSettings {
-    return ({} as symbol.SymbolSettings)
+    return ({ enable: true } as symbol.SymbolSettings)
   }
 
   // Call Hierarchy View via LS callHierarchy---------------------------------

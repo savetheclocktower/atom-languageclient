@@ -63,11 +63,12 @@ export default class CodeFormatAdapter {
       return CodeFormatAdapter.formatDocument(connection, editor)
     }
 
-    throw new Error("Can not format document, language server does not support it")
+    throw new Error("Cannot format document, language server does not support it")
   }
 
   /**
-   * Public: Format the entire document of an Atom {@link TextEditor} by using a given language server.
+   * Public: Format the entire document of an Atom {@link TextEditor} by using
+   * a given language server.
    *
    * @param connection A {@link LanguageClientConnection} to the language
    *   server that will format the text.
