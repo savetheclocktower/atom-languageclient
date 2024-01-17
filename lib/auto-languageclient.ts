@@ -33,7 +33,8 @@ import { Socket } from "net"
 import {
   Diagnostic,
   ExecuteCommandParams,
-  LanguageClientConnection
+  LanguageClientConnection,
+  SymbolKind
 } from "./languageclient"
 import { ConsoleLogger, FilteredLogger, Logger } from "./logger"
 import {
@@ -64,8 +65,9 @@ export interface ServerAdapters {
   signatureHelpAdapter?: SignatureHelpAdapter
 }
 
-export type EnhancedRefactorProvider = atomIde.RefactorProvider & {
-  prepareRename?(editor: TextEditor, position: Point): Promise<Range | boolean | null>
+let KNOWN_SYMBOL_KINDS: SymbolKind[] = []
+for (let i = 1; i < 27; i++) {
+  KNOWN_SYMBOL_KINDS.push(i as SymbolKind)
 }
 
 /**
@@ -159,6 +161,7 @@ export default class AutoLanguageClient {
           workspaceEdit: {
             documentChanges: true,
             normalizesLineEndings: false,
+            failureHandlingKind: 'transactional',
             changeAnnotationSupport: undefined,
             resourceOperations: ["create", "rename", "delete"],
           },
@@ -172,6 +175,12 @@ export default class AutoLanguageClient {
           // BLOCKED: on atom/symbols-view
           symbol: {
             dynamicRegistration: false,
+            symbolKind: {
+              valueSet: KNOWN_SYMBOL_KINDS,
+            },
+            tagSupport: {
+              valueSet: [],
+            },
           },
           executeCommand: {
             dynamicRegistration: false,
@@ -233,7 +242,14 @@ export default class AutoLanguageClient {
           },
           documentSymbol: {
             dynamicRegistration: false,
+            symbolKind: {
+              valueSet: KNOWN_SYMBOL_KINDS,
+            },
+            tagSupport: {
+              valueSet: [],
+            },
             hierarchicalDocumentSymbolSupport: true,
+            labelSupport: true,
           },
           formatting: {
             dynamicRegistration: false,
@@ -251,7 +267,17 @@ export default class AutoLanguageClient {
             dynamicRegistration: false,
             codeActionLiteralSupport: {
               codeActionKind: {
-                valueSet: [""], // TODO explicitly support more?
+                // TODO explicitly support more?
+                valueSet: [
+                  'quickfix',
+                  'refactor',
+                  'refactor.extract',
+                  'refactor.inline',
+                  'refactor.rewrite',
+                  'source',
+                  'source.organizeImports',
+                  'source.fixAll'
+                ],
               },
             },
           },
@@ -259,6 +285,9 @@ export default class AutoLanguageClient {
             dynamicRegistration: false,
           },
           documentLink: {
+            dynamicRegistration: false,
+          },
+          colorProvider: {
             dynamicRegistration: false,
           },
           rename: {
@@ -282,7 +311,6 @@ export default class AutoLanguageClient {
           },
           implementation: undefined,
           typeDefinition: undefined,
-          colorProvider: undefined,
           foldingRange: undefined,
           selectionRange: undefined,
           linkedEditingRange: undefined,
