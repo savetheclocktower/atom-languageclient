@@ -1006,7 +1006,7 @@ export default class AutoLanguageClient {
         let server = await this._serverManager.getServer(meta.editor)
         if (!server) return []
 
-        return adapter.getSymbols(server, meta, settings)
+        return adapter.getSymbols(server, meta)
       }
     }
   }

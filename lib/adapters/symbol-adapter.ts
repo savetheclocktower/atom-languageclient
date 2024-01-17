@@ -148,7 +148,8 @@ function symbolKindToTag(symbol: SymbolKind): string | null {
 }
 
 /**
- * Public: Provide symbols to the `symbols-view-redux` package.
+ * Public: Provide symbols and go-to-definition functionality to the
+ * `symbols-view` package.
  */
 export default class SymbolAdapter {
 
@@ -161,7 +162,7 @@ export default class SymbolAdapter {
 
   /**
    * Public: Creates a new {@link SymbolAdapter} to provide symbols to
-   * `symbols-view-redux`.
+   * `symbols-view`.
    *
    * @param logger An instance of {@link Logger}.
    */
@@ -176,7 +177,7 @@ export default class SymbolAdapter {
    * given user request.
    *
    * @param server A language server instance.
-   * @param meta Metadata about the symbol request from `symbols-view-redux`.
+   * @param meta Metadata about the symbol request from `symbols-view`.
    *
    * @returns Whether this provider can supply symbols, in the form of either a
    *   boolean or a numerical score.
@@ -204,14 +205,13 @@ export default class SymbolAdapter {
    * Protected: Supplies project symbols for a given user request.
    *
    * @param server A language server instance.
-   * @param meta Metadata about the symbol request from `symbols-view-redux`.
+   * @param meta Metadata about the symbol request from `symbols-view`.
    *
-   * @returns The symbols to be shown by `symbols-view-redux`.
+   * @returns The symbols to be shown by `symbols-view`.
    */
   protected async getProjectSymbols(
     server: Awaited<ServerPromise>,
-    meta: SymbolMeta,
-    settings: SymbolSettings
+    meta: SymbolMeta
   ): Promise<SymbolEntry[]> {
     if (server === null) return []
 
@@ -237,22 +237,21 @@ export default class SymbolAdapter {
     )
 
     if (results === null || results.length === 0) return []
-    return this.createSymbols(results, editor, settings)
+    return this.createSymbols(results, editor)
   }
 
   /**
    * Protected: Supplies candidates to resolve a given project-wide reference
-   * for `symbols-view-redux`.
+   * for `symbols-view`.
    *
    * @param server A language server instance.
-   * @param meta Metadata about the symbol request from `symbols-view-redux`.
+   * @param meta Metadata about the symbol request from `symbols-view`.
    *
-   * @returns The symbols to be shown by `symbols-view-redux`.
+   * @returns The symbols to be shown by `symbols-view`.
    */
   protected async getProjectReferences(
     server: Awaited<ServerPromise>,
     meta: SymbolMeta,
-    settings: SymbolSettings
   ): Promise<SymbolEntry[]> {
     if (server === null) return []
 
@@ -266,43 +265,38 @@ export default class SymbolAdapter {
 
     let position = meta.range?.start ?? editor.getLastCursor().getBufferPosition()
 
-    let results = await connection.gotoDefinition(
-      {
-        textDocument: Convert.editorToTextDocumentIdentifier(editor),
-        position: Convert.pointToPosition(position)
-      }
-    )
+    let params = Convert.editorToTextDocumentPositionParams(editor, position)
+    let results = await connection.gotoDefinition(params)
 
     if (results === null) return []
     if (!Array.isArray(results)) {
       results = [results]
     }
 
-    return this.createSymbols(results as any, editor, settings, query)
+    return this.createSymbols(results as any, editor, query)
   }
 
   /**
    * Public: Supplies symbols in response to a symbol request from
-   * `symbols-view-redux`.
+   * `symbols-view`.
    *
    * @param server The language server for the given editor.
-   * @param meta Metadata about the symbol request from `symbols-view-redux`.
+   * @param meta Metadata about the symbol request from `symbols-view`.
    *
-   * @returns The symbols to be shown by `symbols-view-redux`.
+   * @returns The symbols to be shown by `symbols-view`.
    */
-  async getSymbols(
+  public async getSymbols(
     server: Awaited<ServerPromise>,
     meta: SymbolMeta,
-    settings: SymbolSettings
   ): Promise<SymbolResponse> {
     if (server === null) return []
 
     if (meta.type === 'project') {
-      return this.getProjectSymbols(server, meta, settings)
+      return this.getProjectSymbols(server, meta)
     }
 
     if (meta.type === 'project-find') {
-      return this.getProjectReferences(server, meta, settings)
+      return this.getProjectReferences(server, meta)
     }
 
     const editor: TextEditor = meta.editor
@@ -319,7 +313,7 @@ export default class SymbolAdapter {
     )
 
     if (results === null || results.length === 0) return []
-    return this.createSymbols(results, editor, settings)
+    return this.createSymbols(results, editor)
   }
 
   /**
@@ -327,8 +321,6 @@ export default class SymbolAdapter {
    * required by the `symbols` service.
    *
    * @param symbolResults A list of objects to be converted into symbols.
-   * @param settings Settings from the user that control which symbols are
-   *   returned to the UI.
    * @param name A name to use for each symbol if the raw symbol type doesn't
    *   have its own name; optional.
    *
@@ -337,7 +329,6 @@ export default class SymbolAdapter {
   createSymbols(
     symbolResults: RawSymbolList,
     editor: TextEditor,
-    settings: SymbolSettings,
     name?: string
   ): SymbolResponse {
     const results: SymbolResponse = []
@@ -367,24 +358,26 @@ export default class SymbolAdapter {
           let range = symbol.range
           let position = Convert.positionToPoint(range.start)
           let atomRange = Convert.lsRangeToAtomRange(range)
-
-          results.push({
+          let result = {
             name: name ?? 'Location',
             position,
             path: Convert.uriToPath(symbol.uri),
             range: atomRange
-          })
+          }
+          results.push(result)
         } else if (LocationLink.is(symbol)) {
           let range = symbol.targetRange
           let position = Convert.positionToPoint(range.start)
           let atomRange = Convert.lsRangeToAtomRange(range)
 
-          results.push({
+          let result = {
             name: name ?? 'Location',
             position,
             path: Convert.uriToPath(symbol.targetUri),
             range: atomRange
-          })
+          }
+
+          results.push(result)
         } else {
           let range = symbol.location.range
           let position = Convert.positionToPoint(range.start)
@@ -392,14 +385,16 @@ export default class SymbolAdapter {
           let tag = symbolKindToTag(symbol.kind)
           let context = symbol.containerName
 
-          results.push({
+          let result = {
             name: symbol.name,
             position,
             path: Convert.uriToPath(symbol.location.uri),
             range: atomRange,
             tag,
             context
-          })
+          }
+
+          results.push(result)
         }
       }
     }
