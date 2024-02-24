@@ -166,8 +166,8 @@ describe("ApplyEditAdapter", () => {
             [TEST_PATH4]: [
               {
                 range: {
-                  start: { line: 0, character: 1 },
-                  end: { line: 0, character: 2 },
+                  start: { line: 1, character: 1 },
+                  end: { line: 1, character: 2 },
                 },
                 newText: "def",
               },
@@ -179,7 +179,7 @@ describe("ApplyEditAdapter", () => {
       expect(result.applied).toBe(false)
       const errorCalls = (atom as any).notifications.addError.calls.all()
       expect(errorCalls.length).toBe(1)
-      expect(errorCalls[0].args[1].detail).toBe(`Out of range edit on ${TEST_PATH4}:1:2`)
+      expect(errorCalls[0].args[1].detail.startsWith(`Out of range edit on ${TEST_PATH4}:2:2`)).toBe(true)
     })
 
     it("handles rename resource operations", async () => {

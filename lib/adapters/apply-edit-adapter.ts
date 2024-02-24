@@ -24,7 +24,7 @@ type CodeEdit = {
   path: string,
   range: Range,
   newText: string
-};
+}
 
 /** Public: Adapts workspace/applyEdit commands to editors. */
 export default class ApplyEditAdapter {
@@ -225,7 +225,10 @@ function validateEdit(buffer: TextBuffer, edit: atomIde.TextEdit, prevEdit: atom
   const startRow = edit.oldRange.start.row
   const startCol = edit.oldRange.start.column
   const lineLength = buffer.lineLengthForRow(startRow)
-  if (lineLength == null || startCol > lineLength) {
-    throw Error(`Out of range edit on ${path}:${startRow + 1}:${startCol + 1}`)
+  if (lineLength == null) {
+    throw Error(`Out of range edit on ${path}:${startRow + 1}:${startCol + 1}. Desired edit range: ${edit.oldRange.toString()}`)
+  } else if (startCol > lineLength) {
+    // The edit wants to start at a point that's past the end of the line, but
+    // this is OK. `setTextInRange` seems to do just fine with this.
   }
 }
