@@ -9,9 +9,12 @@ import { ReportBusyWhile } from "./utils"
 export type MinimalLanguageServerProcess = Pick<ChildProcess, "stdin" | "stdout" | "stderr" | "pid" | "kill" | "on">
 
 /**
- * Public: Defines a language server process which is either a ChildProcess, or it is a minimal object that resembles a
- * ChildProcess. `MinimalLanguageServerProcess` is used so that language packages with alternative language server
- * process hosting strategies can return something compatible with `AutoLanguageClient.startServerProcess`.
+ * Public: Defines a language server process which is either a ChildProcess, or
+ * it is a minimal object that resembles a ChildProcess.
+ *
+ * `MinimalLanguageServerProcess` is used so that language packages with
+ * alternative language server process hosting strategies can return something
+ * compatible with `AutoLanguageClient.startServerProcess`.
  */
 export type LanguageServerProcess = ChildProcess | MinimalLanguageServerProcess
 

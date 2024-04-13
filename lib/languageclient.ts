@@ -246,7 +246,8 @@ export class LanguageClientConnection extends EventEmitter {
   /**
    * Public: Send a `textDocument/willSave` notification.
    *
-   * @param params The {WillSaveTextDocumentParams} containing the to-be-saved text document details and the reason for the save.
+   * @param params The {@link WillSaveTextDocumentParams} containing the
+   *   to-be-saved text document details and the reason for the save.
    */
   public willSaveTextDocument(params: lsp.WillSaveTextDocumentParams): void {
     this._sendNotification(lsp.WillSaveTextDocumentNotification.type, params)
@@ -255,8 +256,10 @@ export class LanguageClientConnection extends EventEmitter {
   /**
    * Public: Send a `textDocument/willSaveWaitUntil` notification.
    *
-   * @param params The {WillSaveTextDocumentParams} containing the to-be-saved text document details and the reason for the save.
-   * @returns A {Promise} containing an {Array} of {TextEdit}s to be applied to the text document before it is saved.
+   * @param params The {@link WillSaveTextDocumentParams} containing the
+   *   to-be-saved text document details and the reason for the save.
+   * @returns A {@link Promise} containing an array of {@link TextEdit}s to be
+   *   applied to the text document before it is saved.
    */
   public willSaveWaitUntilTextDocument(params: lsp.WillSaveTextDocumentParams): Promise<lsp.TextEdit[] | null> {
     return this._sendRequest(lsp.WillSaveTextDocumentWaitUntilRequest.type, params)
@@ -265,7 +268,8 @@ export class LanguageClientConnection extends EventEmitter {
   /**
    * Public: Send a `textDocument/didSave` notification.
    *
-   * @param params The {DidSaveTextDocumentParams} containing the saved text document details.
+   * @param params The {@link DidSaveTextDocumentParams} containing the saved
+   *   text document details.
    */
   public didSaveTextDocument(params: lsp.DidSaveTextDocumentParams): void {
     this._sendNotification(lsp.DidSaveTextDocumentNotification.type, params)
@@ -274,19 +278,21 @@ export class LanguageClientConnection extends EventEmitter {
   /**
    * Public: Send a `workspace/didChangeWatchedFiles` notification.
    *
-   * @param params The {DidChangeWatchedFilesParams} containing the array of {FileEvent}s that have been observed upon
-   *   the watched files.
+   * @param params The {@link DidChangeWatchedFilesParams} containing the array
+   *   of {@link FileEvent}s that have been observed upon the watched files.
    */
   public didChangeWatchedFiles(params: lsp.DidChangeWatchedFilesParams): void {
     this._sendNotification(lsp.DidChangeWatchedFilesNotification.type, params)
   }
 
   /**
-   * Public: Register a callback for the `workspace.workspaceFolders` request. This request is sent from the server to
-   * Atom to fetch the current open list of workspace folders
+   * Public: Register a callback for the `workspace.workspaceFolders` request.
+   * This request is sent from the server to Atom to fetch the current open
+   * list of workspace folders.
    *
-   * @param A Callback which returns a {Promise} containing an {Array} of {lsp.WorkspaceFolder[]} or {null} if only a
-   *   single file is open in the tool.
+   * @param callback A Callback which returns a {@link Promise} containing an
+   *   array of {@link lsp.WorkspaceFolder[]}s, or `null` if only a single file
+   *   is open in the tool.
    */
   public onWorkspaceFolders(callback: () => Promise<lsp.WorkspaceFolder[] | null>): void {
     return this._onRequest(lsp.WorkspaceFoldersRequest.type, callback)
@@ -459,6 +465,20 @@ export class LanguageClientConnection extends EventEmitter {
    */
   public codeLensResolve(params: lsp.CodeLens): Promise<lsp.CodeLens> {
     return this._sendRequest(lsp.CodeLensResolveRequest.type, params)
+  }
+
+  /**
+   * Public: Send a `textDocument/foldingRange` request.
+   * @param params The parameters for the request, including a text document
+   *   identifier.
+   * @param cancellationToken A cancellation token for the request.
+   * @returns A {@link Promise} containing an array of {@link FoldingRange}s.
+   */
+  public foldingRange(
+    params: lsp.FoldingRangeParams,
+    cancellationToken: jsonrpc.CancellationToken
+  ): Promise<lsp.FoldingRange[] | null> {
+    return this._sendRequest(lsp.FoldingRangeRequest.type, params, cancellationToken)
   }
 
   /**

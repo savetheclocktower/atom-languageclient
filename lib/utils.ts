@@ -125,6 +125,11 @@ function isTextEditor(thing: any): thing is TextEditor {
   return thing.constructor.name === 'TextEditor'
 }
 
+/**
+ * Finds all open {TextEditor} instances for a given file path.
+ * 
+ * @returns An array of {@link TextEditor}s.
+ */
 export function findAllTextEditorsForPath(path: string): TextEditor[] {
   let panes = atom.workspace.getPanes()
   let results: TextEditor[] = []
@@ -139,6 +144,11 @@ export function findAllTextEditorsForPath(path: string): TextEditor[] {
   return results
 }
 
+/**
+ * Finds any open {TextEditor} instance for a given file path.
+ *
+ * @returns A {@link TextEditor}.
+ */
 export function findFirstTextEditorForPath(path: string): TextEditor | undefined {
   let panes = atom.workspace.getPanes()
   for (let pane of panes) {
