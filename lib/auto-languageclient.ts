@@ -723,17 +723,6 @@ export default class AutoLanguageClient {
   }
 
   /**
-   * Returns linter configuration settings that your package specifies. These
-   * settings control whether linter features altogether are enabled, among
-   * other things.
-   *
-   * @returns A plain object of linter settings
-   */
-  getLinterSettings(_editor: TextEditor | undefined, _path: string): lint.LinterSettingsObject {
-    return ({ enable: true } as lint.LinterSettingsObject)
-  }
-
-  /**
    * A callback for allowing a package to ignore a linter message according to
    * arbitrary criteria.
    *
@@ -1008,6 +997,30 @@ export default class AutoLanguageClient {
     return false
   }
 
+  /**
+   * Override to implement custom logic about when a symbol provider can
+   * fulfill a request. For instance, can return false if a setting is
+   * disabled, or if the editor is unsaved.
+   *
+   * @returns Whether the language server should try to provide symbols for a
+   *   given request.
+   */
+  canProvideSymbols(_meta: sa.SymbolMeta) {
+    return true
+  }
+
+  /**
+   * Override to define a minimum query length for project-wide symbol search.
+   *
+   * Has no effect on other kinds of symbol search.
+   *
+   * @returns A number representing minimum query length before asking the
+   *   language server to suggest project-wide symbols.
+   */
+  minimumQueryLengthForSymbolSearch(_meta: sa.SymbolMeta) {
+    return 3
+  }
+
   // Symbol View (file/project/reference) via LS documentSymbol/workspaceSymbol/goToDefinition
   public provideSymbols(): sa.SymbolProvider {
     this.symbolProvider ??= new SymbolAdapter(undefined, {
@@ -1015,16 +1028,16 @@ export default class AutoLanguageClient {
         return this.shouldIgnoreSymbol(symbol, editor)
       }
     })
-    let adapter = this.symbolProvider
 
+    let adapter = this.symbolProvider
     return {
       name: this.getServerName(),
       packageName: this.getPackageName(),
       isExclusive: adapter.isExclusive,
 
       canProvideSymbols: async (meta: sa.SymbolMeta): Promise<boolean | number> => {
-        let settings = this.getSymbolSettings(meta.editor)
-        if (!settings.enable) return false
+        let override = this.canProvideSymbols(meta)
+        if (!override) return false
 
         let server = await this._serverManager.getServer(meta.editor)
         if (!server) return false
@@ -1037,9 +1050,8 @@ export default class AutoLanguageClient {
       },
 
       getSymbols: async (meta: sa.SymbolMeta, listController: sa.ListController): Promise<sa.SymbolResponse> => {
-        let settings = this.getSymbolSettings(meta.editor)
         let query = meta.query ?? ''
-        let minLength = settings.minimumQueryLength ?? 0
+        let minLength = this.minimumQueryLengthForSymbolSearch(meta) ?? 1
         if (meta.type === 'project' && query.length < minLength) {
           let noun = minLength === 1 ? 'character' : 'characters'
           listController.set({
@@ -1056,18 +1068,6 @@ export default class AutoLanguageClient {
         return adapter.getSymbols(server, meta)
       }
     }
-  }
-
-  /**
-   * Override to provide settings from your own package.
-   *
-   * @param _editor An instance of a text editor.
-   *
-   * @returns An object of key/value pairs that control aspects of symbol
-   *   retrieval and display.
-   */
-  getSymbolSettings(_editor: TextEditor): symbol.SymbolSettings {
-    return ({ enable: true } as symbol.SymbolSettings)
   }
 
   // Call Hierarchy View via LS callHierarchy---------------------------------

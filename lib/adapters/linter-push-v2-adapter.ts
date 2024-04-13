@@ -22,23 +22,8 @@ import type * as atomIde from "atom-ide-base"
 import * as ls from "../languageclient"
 import type * as codeActions from "../adapters/code-action-adapter"
 
-export type LinterSettingsObject = {
-  enabled?: boolean,
-  includeMessageCodeInMessageBody?: boolean
-}
-
 const SHOULD_LOAD_SOLUTIONS = false
 const SHOULD_PRELOAD_SOLUTIONS_FOR_EACH_LINTER_MESSAGE = false
-
-/**
- * A handler for retrieving linter settings. Takes an `editor` param so that
- * the user can optionally provide scope-specific settings. The `editor`
- * parameter may be `undefined` — meaning that there is no editor currently
- * open to process the given diagnostics — in which case the handler _must_
- * still return settings.
- */
-export type LinterSettings = LinterSettingsObject |
-  ((editor: TextEditor | undefined, path: string) => LinterSettingsObject)
 
 /** @deprecated Use Linter V2 service */
 export type DiagnosticCode = number | string
