@@ -72,13 +72,15 @@ for (let i = 1; i < 27; i++) {
 }
 
 /**
- * Public: AutoLanguageClient provides a simple way to have all the supported Atom-IDE services wired up entirely for
- * you by just subclassing it and implementing at least
+ * Public: AutoLanguageClient provides a simple way to have all the supported
+ * Atom-IDE services wired up entirely for you by just subclassing it and
+ * implementing at least
  *
  * - `startServerProcess`
  * - `getGrammarScopes`
  * - `getLanguageName`
  * - `getServerName`
+ * - `getPackageName`
  */
 export default class AutoLanguageClient {
   private _disposable!: CompositeDisposable
@@ -737,8 +739,21 @@ export default class AutoLanguageClient {
    *
    * @returns Whether a given linter message should be ignored.
    */
-  shouldIgnoreMessage(_diag: Diagnostic, _editor: TextEditor, _range: Range): boolean {
+  shouldIgnoreMessage(_diag: Diagnostic, _editor: TextEditor | undefined, _range: Range): boolean {
     return false
+  }
+
+  /**
+   * A callback to allow a package to transform a linter message according to
+   * arbitrary criteria.
+   *
+   * @returns Either undefined or a message object. If undefined, will keep the
+   *   original message object; this allows a package to decline to modify the
+   *   message or to modify it in-place instead of copying it. If an object is
+   *   returned, it must abide by the linter message contract.
+   */
+  transformMessage(message: linter.Message, _diag: Diagnostic, _editor?: TextEditor): linter.Message | void {
+    return message
   }
 
   getIntentionsForLinterMessage(
@@ -768,12 +783,14 @@ export default class AutoLanguageClient {
 
     const linterPushV2 = new LinterPushV2Adapter(
       server.connection,
-      (editor, filePath) => this.getLinterSettings(editor, filePath),
       this._intentionsManager,
       {
         ...this.getCodeActionsDelegate(),
         shouldIgnoreMessage: (...args) => {
           return this.shouldIgnoreMessage(...args)
+        },
+        transformMessage: (...args) => {
+          return this.transformMessage(...args)
         }
       }
     )

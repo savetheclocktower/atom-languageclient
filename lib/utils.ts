@@ -139,7 +139,7 @@ export function findAllTextEditorsForPath(path: string): TextEditor[] {
   return results
 }
 
-export function findFirstTextEditorForPath(path: string): TextEditor | null {
+export function findFirstTextEditorForPath(path: string): TextEditor | undefined {
   let panes = atom.workspace.getPanes()
   for (let pane of panes) {
     for (let item of pane.getItems()) {
@@ -149,5 +149,5 @@ export function findFirstTextEditorForPath(path: string): TextEditor | null {
       }
     }
   }
-  return null
+  return undefined
 }

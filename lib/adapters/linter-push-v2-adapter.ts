@@ -46,7 +46,8 @@ export type DiagnosticCode = number | string
 export type LinterMessageSolution = linter.ReplacementSolution | linter.CallbackSolution
 
 export type LinterDelegate = codeActions.CodeActionsDelegate & {
-  shouldIgnoreMessage(diag: Diagnostic, editor: TextEditor, range: Range): boolean
+  shouldIgnoreMessage(diag: Diagnostic, editor: TextEditor | undefined, range: Range): boolean
+  transformMessage(message: linter.Message, diag: Diagnostic, editor?: TextEditor): linter.Message | void
 }
 
 /**
@@ -85,7 +86,6 @@ export default class LinterPushV2Adapter {
   protected _lastDiagnosticsParamsByEditor: WeakMap<TextEditor, PublishDiagnosticsParams>
   protected _editorsWithSaveCallbacks: WeakSet<TextEditor>
 
-  protected _settings: LinterSettings
   protected _intentionsManager?: IntentionsListAdapter
   protected _delegate?: LinterDelegate
 
@@ -98,13 +98,11 @@ export default class LinterPushV2Adapter {
    */
   constructor(
     connection: LanguageClientConnection,
-    settings?: LinterSettings,
     intentionsManager?: IntentionsListAdapter,
     delegate?: LinterDelegate
   ) {
     this._connection = connection
     this._delegate = delegate
-    this._settings = settings ?? ({} as LinterSettings)
     this._intentionsManager = intentionsManager
     this._lastDiagnosticsParamsByEditor = new WeakMap()
     this._editorsWithSaveCallbacks = new WeakSet()
@@ -134,15 +132,6 @@ export default class LinterPushV2Adapter {
     this._editorsWithSaveCallbacks.add(editor)
   }
 
-  protected consumeSettings(editor: TextEditor, path: string): LinterSettingsObject {
-    // The `_settings` object can be a function; this lets a package provide
-    // up-to-date config read from the user's own settings.
-    if (typeof this._settings === 'function') {
-      return this._settings(editor, path)
-    }
-    return this._settings
-  }
-
   addIntentionsForLinterMessage(path: string, message: linter.Message, code: string, diag: Diagnostic): void {
     if (!this._intentionsManager) return
 
@@ -156,28 +145,22 @@ export default class LinterPushV2Adapter {
    *
    * @param path The path to the file referenced by this message.
    * @param diag The diagnostic message.
-   * @param settings Settings for the linter.
    * @returns Either a linter message object or null.
    */
   protected transformOrIgnoreDiagnosticMessage(
     path: string,
     diag: Diagnostic,
-    settings: LinterSettingsObject = {}
   ): linter.Message | null {
-    let {
-      includeMessageCodeInMessageBody = false
-    } = settings
-
     let range = Convert.lsRangeToAtomRange(diag.range)
     let editor = findFirstTextEditorForPath(path)
 
-    if (editor && this._delegate?.shouldIgnoreMessage(diag, editor, range)) {
+    if (this._delegate?.shouldIgnoreMessage(diag, editor ?? undefined, range)) {
       return null
     }
 
     let code = diag.code ? String(diag.code) : null
 
-    const linterMessage = lsDiagnosticToV2Message(path, diag)
+    let linterMessage = lsDiagnosticToV2Message(path, diag)
 
     if (diag.severity && editor && SHOULD_PRELOAD_SOLUTIONS_FOR_EACH_LINTER_MESSAGE) {
       // This behavior is disabled by default because it's a bit chatty. Given
@@ -210,12 +193,10 @@ export default class LinterPushV2Adapter {
       )
     }
 
-    // TODO: If this is changed to a callback that allows the consumer to
-    // transform the linter message, then `atom-languageclient` doesn't need to
-    // know about the `includeMessageCodeInMessageBody` setting.
-    if (includeMessageCodeInMessageBody && code) {
-      linterMessage.excerpt = `${linterMessage.excerpt} (${code})`
-    }
+    // Allow a client to transform a linter message. This can happen in place
+    // by modifying properties (and returning `undefined`) or by making and
+    // returning a new object, as long as it conforms to the contract.
+    linterMessage = this._delegate?.transformMessage?.(linterMessage, diag, editor) ?? linterMessage
 
     if (code) {
       this.addIntentionsForLinterMessage(path, linterMessage, code, diag)
@@ -286,11 +267,6 @@ export default class LinterPushV2Adapter {
     const codeMap = new Map<string, Diagnostic>()
     const diagnosticMap = new Map<string, linter.Message>()
 
-    // We know that `textEditors` may be empty, but we proceed anyway. Part of
-    // our contract with the IDE package is that it must return linter settings
-    // to us even when the editor is closed. They can infer the grammar from
-    // the path or simply return settings that may not be scope-specific.
-    let settings = this.consumeSettings(textEditors[0], path)
     let messages: linter.Message[] = []
 
     let retainedDiagnostics: Diagnostic[] = []
@@ -298,7 +274,7 @@ export default class LinterPushV2Adapter {
 
     for (let diagnostic of params.diagnostics) {
       let linterMessage = this.transformOrIgnoreDiagnosticMessage(
-        path, diagnostic, settings
+        path, diagnostic
       )
       if (!linterMessage) continue
       let { location: { position: range } } = linterMessage
