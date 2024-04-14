@@ -991,9 +991,14 @@ export default class AutoLanguageClient {
    * a list. Override this method to apply arbitrary criteria for ignoring
    * certain symbols.
    *
-   * @returns A boolean
+   * Will be consulted no matter what sort of `symbols-view` command is run; if
+   * you want to filter the symbol list only for certain kinds of actions,
+   * consult the `meta` argument to know what sort of action is being invoked.
+   *
+   * @returns A boolean indicating whether a symbol should be shown in a list
+   *   of symbols.
    */
-  shouldIgnoreSymbol(_symbol: symbol.SymbolEntry, _editor: TextEditor): boolean {
+  shouldIgnoreSymbol(_symbol: symbol.SymbolEntry, _editor: TextEditor, _meta: symbol.SymbolMeta): boolean {
     return false
   }
 
@@ -1001,6 +1006,11 @@ export default class AutoLanguageClient {
    * Override to implement custom logic about when a symbol provider can
    * fulfill a request. For instance, can return false if a setting is
    * disabled, or if the editor is unsaved.
+   *
+   * If this method returns `false`, the consuming package will not attempt to
+   * act as a provider for a single symbol request. But if it returns `true`,
+   * we may still decline to act as a symbol provider for other reasons
+   * (incompatible grammar, lack of language server, et cetera).
    *
    * @returns Whether the language server should try to provide symbols for a
    *   given request.
@@ -1024,8 +1034,8 @@ export default class AutoLanguageClient {
   // Symbol View (file/project/reference) via LS documentSymbol/workspaceSymbol/goToDefinition
   public provideSymbols(): sa.SymbolProvider {
     this.symbolProvider ??= new SymbolAdapter(undefined, {
-      shouldIgnoreSymbol: (symbol: symbol.SymbolEntry, editor: TextEditor) => {
-        return this.shouldIgnoreSymbol(symbol, editor)
+      shouldIgnoreSymbol: (symbol, editor, meta) => {
+        return this.shouldIgnoreSymbol(symbol, editor, meta)
       }
     })
 

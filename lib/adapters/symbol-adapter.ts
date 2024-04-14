@@ -32,29 +32,6 @@ export type ListController = {
   clear: (...props: ControllableListProps[]) => void
 }
 
-/**
- * Settings that control aspects of symbol retrieval and display.
- */
-export type SymbolSettings = {
-  /**
-   * Tags (in string form) for symbols that the user wants to exclude from all
-   * symbol lists. (Symbols of these types may still be targeted with a "go to
-   * declaration" command.)
-   */
-  ignoredTags?: string[],
-
-  /**
-   * The minimum number of charcters the user must type on a project search
-   * before this provider will return any results.
-   */
-  minimumQueryLength?: number,
-
-  /**
-   * Whether this adapter is enabled for a given context.
-   */
-  enable?: true
-}
-
 export type ServerPromise = ReturnType<ServerManager['getServer']>
 
 export type SymbolEntry = {
@@ -82,7 +59,7 @@ export type SymbolProvider = {
 }
 
 export type SymbolDelegate = {
-  shouldIgnoreSymbol(symbol: SymbolEntry, editor: TextEditor): boolean
+  shouldIgnoreSymbol(symbol: SymbolEntry, editor: TextEditor, meta: SymbolMeta): boolean
 }
 
 
@@ -237,7 +214,7 @@ export default class SymbolAdapter {
     )
 
     if (results === null || results.length === 0) return []
-    return this.createSymbols(results, editor)
+    return this.createSymbols(results, editor, meta)
   }
 
   /**
@@ -273,7 +250,7 @@ export default class SymbolAdapter {
       results = [results]
     }
 
-    return this.createSymbols(results as any, editor, query)
+    return this.createSymbols(results as any, editor, meta, query)
   }
 
   /**
@@ -313,7 +290,7 @@ export default class SymbolAdapter {
     )
 
     if (results === null || results.length === 0) return []
-    return this.createSymbols(results, editor)
+    return this.createSymbols(results, editor, meta)
   }
 
   /**
@@ -329,6 +306,7 @@ export default class SymbolAdapter {
   createSymbols(
     symbolResults: RawSymbolList,
     editor: TextEditor,
+    meta: SymbolMeta,
     name?: string
   ): SymbolResponse {
     const results: SymbolResponse = []
@@ -416,7 +394,7 @@ export default class SymbolAdapter {
       filteredResults = results
     } else {
       for (let result of results) {
-        if (this._delegate?.shouldIgnoreSymbol(result, editor))
+        if (this._delegate?.shouldIgnoreSymbol(result, editor, meta))
           continue
         filteredResults.push(result)
       }
