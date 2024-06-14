@@ -18,6 +18,7 @@ import {
   TextEditor
 } from "atom"
 import { promises as fsp, Stats } from "fs"
+// @ts-ignore Messed-up types file
 import rimraf from "rimraf"
 
 type CodeEdit = {
@@ -148,7 +149,7 @@ export default class ApplyEditAdapter {
       if (stats.isDirectory()) {
         if (edit.options?.recursive) {
           return new Promise((resolve, reject) => {
-            rimraf(path, { glob: false }, (err) => {
+            rimraf(path, { glob: false }, (err: unknown) => {
               if (err) {
                 reject(err)
               }
