@@ -4,18 +4,60 @@ This repo was moved from [atom/atom-languageclient](https://github.com/atom/atom
 
 Provide integration support for adding Language Server Protocol servers to Pulsar.
 
-## What’s different?
+---
+
+## I followed a link from a package README. What functionality does this provide?
+
+If a link from some package’s README file has brought you here, it means that package uses `atom-languageclient` as a dependency. This library knows how to communicate to language servers (“brains” that know how to analyze code in ways that are useful to code editors) and deliver those smarts to Pulsar in the ways that Pulsar expects.
+
+In Pulsar, there is often a division between “consumer” packages and “provider” packages. For instance, the built-in `autocomplete-plus` package knows how to show users an autocomplete menu, but doesn’t know _what_ to suggest while you type. It relies on other packages to act as data sources and feed it suggestion information on the fly.
+
+The contracts between “provider” packages and “consumer” packages are called _services_. The services used by built-in packages (and by popular community packages) are _de facto_ standards. `atom-languageclient` makes it so that one language server “brain” can act as a provider for a large handful of these services at once.
+
+Capabilities vary; some language servers support lots of tasks, and others support only a few. But here are some things that a language server can do, and the parts of Pulsar that this package talks to to make them happen:
+
+* `autocomplete-plus` (builtin Pulsar package)
+  * See autocompletion options as you type
+* `symbols-view` (builtin Pulsar package)
+  * View and filter a list of symbols in the current file (function names, class names, etc.)
+  * View and filter a list of symbols across all files in the project
+  * Jump to the definition of the symbol under the cursor
+* [linter](https://web.pulsar-edit.dev/packages/linter) and [linter-ui-default](https://web.pulsar-edit.dev/packages/linter-ui-default)
+  * View diagnostic messages as you type (syntax errors, stylistic suggestions, etc.)
+* [intentions](https://web.pulsar-edit.dev/packages/intentions)
+  * Open a menu to view possible code actions for a diagnostic message
+  * Open a menu to view possible code actions for the file at large
+* [pulsar-outline-view](https://web.pulsar-edit.dev/packages/pulsar-outline-view)
+  * View a hierarchical list of the current file’s symbols
+* [pulsar-refactor](https://web.pulsar-edit.dev/packages/pulsar-refactor)
+  * Perform project-wide renaming of variables, methods, classes, types, etc.
+* [pulsar-find-references](https://web.pulsar-edit.dev/packages/pulsar-find-references)
+  * Place the cursor inside of a token to highlight other usages of that token
+  * Place the cursor inside of a token, then view a `find-and-replace`-style “results” panel containing all usages of that token across your project
+* [atom-ide-definitions](https://web.pulsar-edit.dev/packages/atom-ide-definitions)
+  * Jump to the definition of the symbol under the cursor
+* [atom-ide-datatip](https://web.pulsar-edit.dev/packages/atom-ide-datatip)
+  * Hover over a symbol to see any related documentation, including method signatures
+* [atom-ide-signature-help](https://web.pulsar-edit.dev/packages/atom-ide-signature-help)
+  * View a function’s parameter signature as you type its arguments
+* [atom-ide-code-format](https://web.pulsar-edit.dev/packages/atom-ide-code-format)
+  * Invoke on a buffer (or a subset of your buffer) to reformat your code according to the language server’s settings
+
+---
+
+## What’s different from mainline `atom-languageclient`?
 
 Here are a few of the notable features added in this fork:
 
-* Symbol search within files and across projects, plus “Go to Reference” support, via [symbols-view-redux](https://web.pulsar-edit.dev/packages/symbols-view-redux)
-  * Ability to filter symbols by type (exclude constants, types, etc.)
-
-* Deeper integration with Linter:
+* Symbol search within files and across projects, plus “Go to Reference” support, via the builtin [symbols-view](https://web.pulsar-edit.dev/packages/symbols-view) package
+  * Ability to customize/ignore symbols before they’re shown to the user
+* Deeper integration with `linter`:
   * Possible solutions for linting issues appear in an intentions menu
-  * Ability to ignore specific codes either altogether or until the buffer is saved
+  * Ability to customize/ignore diagnostic messages before they’re shown to the user
 * Using the `intentions` package for code actions:
   * Ability to invoke the `intentions:show` command anywhere in the buffer and receive code action suggestions
+* Removed dependency on the `zadeh` library in favor of Pulsar’s built-in fuzzy-matcher (`zadeh` doesn’t have an Apple Silicon pre-build, so this was causing headaches for some users)
+  * If the built-in fuzzy-matcher somehow isn’t present, we fall back to `fuzzaldrin` (written in pure JS)
 
 More features are planned.
 
@@ -36,38 +78,40 @@ This npm package can be used by Atom package authors wanting to integrate LSP-co
 
 ## Capabilities
 
-The language server protocol consists of a number of capabilities. Some of these already have a counterpoint we can connect up to today while others do not. The following table shows each capability in v2 and how it is exposed via Atom:
+The language server protocol consists of a number of capabilities. Some of these already have a counterpoint we can connect up to today while others do not. The following table shows each capability in v2 and how it is exposed via Pulsar:
 
-| Capability                        | Atom interface                               |
-| --------------------------------- | ---------------------------------------------|
-| window/showMessage                | Notifications package                        |
-| window/showMessageRequest         | Notifications package                        |
-| window/logMessage                 | Atom-IDE console                             |
-| telemetry/event                   | Ignored                                      |
-| workspace/didChangeWatchedFiles   | Atom file watch API                          |
-| textDocument/publishDiagnostics   | Linter v2 push/indie                         |
-| textDocument/completion           | AutoComplete+                                |
-| completionItem/resolve            | AutoComplete+ (Atom 1.24+)                   |
-| textDocument/hover                | Atom-IDE data tips                           |
-| textDocument/signatureHelp        | Atom-IDE signature help                      |
-| textDocument/definition           | Atom-IDE definitions / `symbols-view-redux`  |
-| textDocument/findReferences       | Atom-IDE findReferences                      |
-| textDocument/documentHighlight    | Atom-IDE code highlights                     |
-| textDocument/documentSymbol       | Atom-IDE outline view / `symbols-view-redux` |
-| workspace/symbol                  | `symbols-view-redux`                         |
-| textDocument/codeAction           | Atom-IDE code actions                        |
-| textDocument/codeLens             | TBD                                          |
-| textDocument/formatting           | Format File command                          |
-| textDocument/rangeFormatting      | Format Selection command                     |
-| textDocument/onTypeFormatting     | Atom-IDE on type formatting                  |
-| textDocument/onSaveFormatting     | Atom-IDE on save formatting                  |
-| textDocument/prepareCallHierarchy | Atom-IDE outline view                        |
-| textDocument/rename               | TBD                                          |
-| textDocument/didChange            | Send on save                                 |
-| textDocument/didOpen              | Send on open                                 |
-| textDocument/didSave              | Send after save                              |
-| textDocument/willSave             | Send before save                             |
-| textDocument/didClose             | Send on close                                |
+| Capability                        | Atom interface                                              |
+| --------------------------------- | ------------------------------------------------------------|
+| window/showMessage                | `notifications` (builtin)                                   |
+| window/showMessageRequest         | `notifications` (builtin)                                   |
+| window/logMessage                 | TBD                                                         |
+| telemetry/event                   | Ignored                                                     |
+| workspace/didChangeWatchedFiles   | Pulsar core                                                 |
+| textDocument/publishDiagnostics   | `linter` v2 push/indie                                      |
+| textDocument/completion           | `autocomplete-plus` (builtin)                               |
+| completionItem/resolve            | `autocomplete-plus` (builtin)                               |
+| textDocument/hover                | `atom-ide-datatip`                                          |
+| textDocument/signatureHelp        | `atom-ide-signature-help`                                   |
+| textDocument/definition           | `atom-ide-definitions` / `symbols-view`                     |
+| textDocument/findReferences       | `pulsar-find-references`                                    |
+| textDocument/documentHighlight    | TBD                                                         |
+| textDocument/documentSymbol       | `symbols-view` / `atom-ide-outline` / `pulsar-outline-view` |
+| workspace/symbol                  | `symbols-view`                                              |
+| textDocument/codeAction           | `intentions`                                                |
+| textDocument/codeLens             | TBD                                                         |
+| textDocument/formatting           | `atom-ide-code-format`                                      |
+| textDocument/rangeFormatting      | `atom-ide-code-format`                                      |
+| textDocument/onTypeFormatting     | TBD                                                         |
+| textDocument/onSaveFormatting     | TBD                                                         |
+| textDocument/prepareCallHierarchy | TBD                                                         |
+| textDocument/rename               | `pulsar-refactor`                                           |
+| textDocument/didChange            | Pulsar core                                                 |
+| textDocument/didOpen              | Pulsar core                                                 |
+| textDocument/didSave              | Pulsar core                                                 |
+| textDocument/willSave             | Pulsar core                                                 |
+| textDocument/didClose             | Pulsar core                                                 |
+
+_(`atom-ide-ui` references removed, since it is currently incompatible with Pulsar)_
 
 ## Developing packages
 
