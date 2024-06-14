@@ -164,7 +164,7 @@ export default class AutoLanguageClient {
           workspaceEdit: {
             documentChanges: true,
             normalizesLineEndings: false,
-            failureHandlingKind: 'transactional',
+            failureHandling: 'transactional',
             changeAnnotationSupport: undefined,
             resourceOperations: ["create", "rename", "delete"],
           },

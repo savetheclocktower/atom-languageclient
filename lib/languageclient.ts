@@ -421,7 +421,7 @@ export class LanguageClientConnection extends EventEmitter {
   public workspaceSymbol(
     params: lsp.WorkspaceSymbolParams,
     _cancellationToken?: jsonrpc.CancellationToken
-  ): Promise<lsp.SymbolInformation[] | null> {
+  ): Promise<lsp.SymbolInformation[] | lsp.WorkspaceSymbol[] | null> {
     return this._sendRequest(lsp.WorkspaceSymbolRequest.type, params)
   }
 

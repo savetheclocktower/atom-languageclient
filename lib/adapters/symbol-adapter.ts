@@ -7,7 +7,8 @@ import {
   Location,
   LocationLink,
   SymbolInformation,
-  SymbolKind
+  SymbolKind,
+  WorkspaceSymbol
 } from '../languageclient'
 import { Logger, NullLogger } from '../logger'
 import { ServerManager } from '../server-manager.js'
@@ -42,10 +43,12 @@ export type SymbolEntry = {
   context?: string | null
 } & (Partial<SymbolFileAndDirectory | SymbolPath>)
 
+export type SymbolActionType = 'project' | 'project-find' | 'file'
+
 export type SymbolMeta = {
   signal?: AbortSignal,
   editor: TextEditor,
-  type: string,
+  type: SymbolActionType,
   query?: string,
   range?: AtomRange
 }
@@ -65,7 +68,7 @@ export type SymbolDelegate = {
 
 export type SymbolResponse = SymbolEntry[]
 
-type RawSymbolList = DocumentSymbol[] | SymbolInformation[] | Location[] | LocationLink[]
+type RawSymbolList = DocumentSymbol[] | SymbolInformation[] | Location[] | LocationLink[] | WorkspaceSymbol[]
 
 type AtomRange = ReturnType<TextEditor['getSelectedBufferRange']>
 
@@ -315,6 +318,8 @@ export default class SymbolAdapter {
 
     const processSymbols = (symbols: typeof symbolResults) => {
       for (const symbol of symbols) {
+        if (isBareUri(symbol)) continue
+
         if (DocumentSymbol.is(symbol)) {
           let tag = symbolKindToTag(symbol.kind)
           const range = Convert.lsRangeToAtomRange(symbol.selectionRange)
@@ -356,7 +361,7 @@ export default class SymbolAdapter {
           }
 
           results.push(result)
-        } else {
+        } else if ('location' in symbol && 'range' in symbol.location) {
           let range = symbol.location.range
           let position = Convert.positionToPoint(range.start)
           let atomRange = Convert.lsRangeToAtomRange(range)
@@ -402,4 +407,9 @@ export default class SymbolAdapter {
 
     return filteredResults
   }
+}
+
+function isBareUri(symbol: unknown | { uri: string }): symbol is { uri: string } {
+  if (symbol == null || typeof symbol !== 'object') return false
+  return ('uri' in symbol && Object.keys(symbol).length === 1)
 }
