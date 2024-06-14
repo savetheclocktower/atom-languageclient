@@ -2,7 +2,7 @@ import Convert from "../convert"
 import * as Utils from "../utils"
 import { CancellationTokenSource } from "vscode-jsonrpc"
 import { ActiveServer } from "../server-manager"
-import { ObjectArrayFilterer } from "zadeh"
+import { PulsarObjectArrayFilterer as ObjectArrayFilterer } from '../fuzzy-matcher'
 import { NullLogger, Logger} from '../logger'
 import {
   CompletionContext,
