@@ -26,6 +26,7 @@ import OutlineViewAdapter from "./adapters/outline-view-adapter"
 import RenameAdapter from "./adapters/rename-adapter"
 import SignatureHelpAdapter from "./adapters/signature-help-adapter"
 import SymbolAdapter from "./adapters/symbol-adapter"
+import WorkDoneProgressAdapter from "./adapters/work-done-progress-adapter"
 import * as sa from "./adapters/symbol-adapter"
 import * as ShowDocumentAdapter from "./adapters/show-document-adapter"
 import * as Utils from "./utils"
@@ -34,7 +35,10 @@ import {
   Diagnostic,
   ExecuteCommandParams,
   LanguageClientConnection,
-  SymbolKind
+  SymbolKind,
+  ShowMessageRequestParams,
+  ResourceOperationKind,
+  FailureHandlingKind
 } from "./languageclient"
 import { ConsoleLogger, FilteredLogger, Logger } from "./logger"
 import {
@@ -164,9 +168,13 @@ export default class AutoLanguageClient {
           workspaceEdit: {
             documentChanges: true,
             normalizesLineEndings: false,
-            failureHandling: 'transactional',
+            failureHandling: FailureHandlingKind.Transactional,
             changeAnnotationSupport: undefined,
-            resourceOperations: ["create", "rename", "delete"],
+            resourceOperations: [
+              ResourceOperationKind.Create,
+              ResourceOperationKind.Rename,
+              ResourceOperationKind.Delete
+            ],
           },
           workspaceFolders: true,
           didChangeConfiguration: {
@@ -175,7 +183,6 @@ export default class AutoLanguageClient {
           didChangeWatchedFiles: {
             dynamicRegistration: false,
           },
-          // BLOCKED: on atom/symbols-view
           symbol: {
             dynamicRegistration: false,
             symbolKind: {
@@ -324,8 +331,13 @@ export default class AutoLanguageClient {
           markdown: undefined,
         },
         window: {
-          workDoneProgress: false, // TODO: support
-          showMessage: undefined,
+          // If this service exists, we can handle `workDoneProgress` messages.
+          workDoneProgress: !!this.busySignalService,
+          showMessage: {
+            messageActionItem: {
+              additionalPropertiesSupport: false
+            }
+          },
           showDocument: { support: true },
         },
         experimental: {},
@@ -722,6 +734,8 @@ export default class AutoLanguageClient {
     })
   }
 
+  // TODO: This should probably be renamed to `shouldIgnoreLinterMessage` or
+  // something similar.
   /**
    * A callback for allowing a package to ignore a linter message according to
    * arbitrary criteria.
@@ -732,6 +746,8 @@ export default class AutoLanguageClient {
     return false
   }
 
+  // TODO: This should probably be renamed to `transformLinterMessage` or
+  // something similar.
   /**
    * A callback to allow a package to transform a linter message according to
    * arbitrary criteria.
@@ -752,10 +768,38 @@ export default class AutoLanguageClient {
     return null
   }
 
+  /**
+   * Whether this server should show a specific message that the server has
+   * sent via the `window/showMessage` method. Overriding this method allows
+   * specific packages to opt out of the display of certain messages.
+   */
+  protected shouldShowMessage(_params: ShowMessageRequestParams, _name: string, _projectPath: string) {
+    return true
+  }
+
+  /**
+   * Whether this server should show a specific message that the server has
+   * sent via the `window/showMessageRequest` method. Overriding this method
+   * allows specific packages to opt out of the display of certain messages.
+   */
+  protected shouldShowMessageRequest(_params: ShowMessageRequestParams, _name: string, _projectPath: string) {
+    return true
+  }
+
   /** Start adapters that are not shared between servers. */
   private startExclusiveAdapters(server: ActiveServer): void {
     ApplyEditAdapter.attach(server.connection)
-    NotificationsAdapter.attach(server.connection, this.name, server.projectPath)
+    if (this.busySignalService) {
+      WorkDoneProgressAdapter.attach(server.connection, this.busySignalService)
+    }
+    NotificationsAdapter.attach(server.connection, this.name, server.projectPath, {
+      shouldShowMessage: (p, name, projectPath) => {
+        return this.shouldShowMessage(p, name, projectPath)
+      },
+      shouldShowMessageRequest: (p, name, projectPath) => {
+        return this.shouldShowMessageRequest(p, name, projectPath)
+      }
+    })
 
     if (DocumentSyncAdapter.canAdapt(server.capabilities)) {
       const docSyncAdapter = new DocumentSyncAdapter(

@@ -5,12 +5,29 @@ import { NullLogger, Logger } from "./logger"
 
 export * from "vscode-languageserver-protocol"
 
+// TODO: Why isn't this exposed in the type definitions?
+interface ProgressParams<T> {
+	/**
+	 * The progress token provided by the client or server.
+	 */
+	token: lsp.ProgressToken;
+
+	/**
+	 * The progress data.
+	 */
+	value: T;
+}
+
+
+type WorkDoneProgress = lsp.WorkDoneProgressBegin | lsp.WorkDoneProgressReport | lsp.WorkDoneProgressEnd
+
 export interface KnownNotifications {
   "textDocument/publishDiagnostics": lsp.PublishDiagnosticsParams
   "telemetry/event": any
   "window/logMessage": lsp.LogMessageParams
   "window/showMessageRequest": lsp.ShowMessageRequestParams
   "window/showMessage": lsp.ShowMessageParams
+  "$/progress": ProgressParams<any>
   [custom: string]: object
 }
 
@@ -18,6 +35,10 @@ export interface KnownRequests {
   "window/showDocument": [lsp.ShowDocumentParams, lsp.ShowDocumentResult]
   "window/showMessageRequest": [lsp.ShowMessageRequestParams, lsp.MessageActionItem | null]
   "workspace/applyEdit": [lsp.ApplyWorkspaceEditParams, lsp.ApplyWorkspaceEditResponse]
+	// Technically a request because it can respond with an error, but we'll treat
+	// it as something that responds with null.
+	"window/workDoneProgress/create": [lsp.WorkDoneProgressCreateParams, null]
+	"$/progress": [ProgressParams<any>, null]
   [custom: string]: [Record<string, any>, Record<string, any> | null]
 }
 
@@ -204,6 +225,38 @@ export class LanguageClientConnection extends EventEmitter {
     callback: (params: lsp.ApplyWorkspaceEditParams) => Promise<lsp.ApplyWorkspaceEditResponse>
   ): void {
     this._onRequest({ method: "workspace/applyEdit" }, callback)
+  }
+
+  /**
+   * Public: Register a callback for the `window/workDoneProgress/create` message.
+   * @param callback
+   */
+	public onWorkDoneProgressCreate(
+    callback: (params: lsp.WorkDoneProgressCreateParams) => unknown
+  ): void {
+    this._onRequest({ method: "window/workDoneProgress/create" }, async (params) => {
+			callback(params)
+			// Enforce the return value here rather than push it onto the consumer.
+			return null
+		})
+  }
+
+	/**
+	 * Public: Send a `window/workDoneProgress/cancel` notification.
+	 * @param params
+	 */
+  public workDoneProgressCancel(params: lsp.WorkDoneProgressCancelParams): void {
+		this._sendNotification(lsp.WorkDoneProgressCancelNotification.type, params)
+  }
+
+  /**
+   * Public: Register a callback for the `$/progress` generic message.
+   * @param callback
+   */
+  public onProgress(
+    callback: (params: ProgressParams<any>) => void
+  ): void {
+    this._onNotification({ method: "$/progress" }, callback)
   }
 
   /**
