@@ -24,8 +24,9 @@ import * as ac from "atom/autocomplete-plus"
 import { Suggestion, TextSuggestion, SnippetSuggestion, SuggestionBase } from "../types/autocomplete-extended"
 
 /**
- * Defines the behavior of suggestion acceptance. Assume you have "cons|ole" in the editor ( `|` is the cursor position)
- * and the autocomplete suggestion is `const`.
+ * Defines the behavior of suggestion acceptance. Assume you have "cons|ole" in
+ * the editor ( `|` is the cursor position) and the autocomplete suggestion is
+ * `const`.
  *
  * - If `false` -> the edits are inserted : const|ole
  * - If `true`` -> the edits are replaced: const|
@@ -33,15 +34,15 @@ import { Suggestion, TextSuggestion, SnippetSuggestion, SuggestionBase } from ".
 type ShouldReplace = boolean
 
 /**
- * Holds a list of suggestions generated from the CompletionItem[] list sent by the server, as well as metadata about
- * the context it was collected in
+ * Holds a list of suggestions generated from the CompletionItem[] list sent by
+ * the server, as well as metadata about the context it was collected in.
  */
 interface SuggestionCacheEntry {
-  /** If `true`, the server will send a list of suggestions to replace this one */
+  /** If `true`, the server will send a list of suggestions to replace this one. */
   isIncomplete: boolean
-  /** The point left of the first character in the original prefix sent to the server */
+  /** The point left of the first character in the original prefix sent to the server. */
   triggerPoint: Point
-  /** The point right of the last character in the original prefix sent to the server */
+  /** The point right of the last character in the original prefix sent to the server. */
   originalBufferPoint: Point
   /** The trigger string that caused the autocomplete (if any) */
   triggerChar: string
@@ -156,11 +157,13 @@ export default class AutocompleteAdapter {
     const filtered = !(request.prefix === "" || (triggerChar !== "" && triggerOnly))
     if (filtered) {
       // filter the suggestions who have `filterText` property
-      const validSuggestions = suggestions.filter((sgs) => typeof sgs.filterText === "string") as Suggestion[] &
-        { filterText: string }[]
-      // TODO use `ObjectArrayFilterer.setCandidate` in `_suggestionCache` to avoid creating `ObjectArrayFilterer` every time from scratch
+      const validSuggestions = suggestions.filter((sgs) => (
+        typeof sgs.filterText === "string"
+      )) as Suggestion[] & { filterText: string }[]
+      // TODO use `ObjectArrayFilterer.setCandidate` in `_suggestionCache` to
+      // avoid creating `ObjectArrayFilterer` every time from scratch.
       const objFilterer = new ObjectArrayFilterer(validSuggestions, "filterText")
-      // zadeh returns an array of the selected `Suggestions`
+      // zadeh returns an array of the selected `Suggestion`s.
       return objFilterer.filter(request.prefix) as any as Suggestion[]
     } else {
       return suggestions
@@ -190,7 +193,8 @@ export default class AutocompleteAdapter {
         : request.bufferPosition.column - request.prefix.length - triggerChar.length
     const triggerPoint = new Point(request.bufferPosition.row, triggerColumn)
 
-    // Do we have complete cached suggestions that are still valid for this request?
+    // Do we have complete cached suggestions that are still valid for this
+    // request?
     if (
       cache &&
       !cache.isIncomplete &&
@@ -214,7 +218,8 @@ export default class AutocompleteAdapter {
       return result
     }
 
-    // Our cached suggestions can't be used so obtain new ones from the language server
+    // Our cached suggestions can't be used, so we'll obtain new ones from the
+    // language server.
     this.logger.log('getting completions!')
     let completions = await Utils.doWithCancellationToken(
       server.connection,
@@ -226,7 +231,8 @@ export default class AutocompleteAdapter {
         )
     )
 
-    // spec guarantees all edits are on the same line, so we only need to check the columns
+    // The spec guarantees all edits are on the same line, so we only need to
+    // check the columns.
     const triggerColumns: [number, number] = [triggerPoint.column, request.bufferPosition.column]
 
     // Setup the cache for subsequent filtered results
@@ -321,8 +327,9 @@ export default class AutocompleteAdapter {
    * no meaning if the string return value is an empty string.
    */
   public static getTriggerCharacter(request: ac.SuggestionsRequestedEvent, triggerChars: string[]): [string, boolean] {
-    // AutoComplete-Plus considers text after a symbol to be a new trigger. So we should look backward
-    // from the current cursor position to see if one is there and thus simulate it.
+    // autocomplete-plus considers text after a symbol to be a new trigger. So
+    // we should look backward from the current cursor position to see if one
+    // is there and thus simulate it.
     const buffer = request.editor.getBuffer()
     const cursor = request.bufferPosition
     const prefixStartColumn = cursor.column - request.prefix.length
@@ -346,8 +353,9 @@ export default class AutocompleteAdapter {
   }
 
   /**
-   * Public: Create TextDocumentPositionParams to be sent to the language
-   * server based on the editor and position from the AutoCompleteRequest.
+   * Public: Create {@link TextDocumentPositionParams} to be sent to the
+   * language server based on the editor and position from the
+   * AutoCompleteRequest.
    *
    * @param request The {@link atom$AutocompleteRequest} to obtain the editor
    *   from.
