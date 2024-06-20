@@ -11,12 +11,26 @@ export interface NotificationButton {
   text: string
 }
 
+// A `NotificationsDelegate` offers a consumer ability to veto the display of a
+// particular message. Sometimes a language server is particularly “chatty” and
+// ends up annoying a user; sometimes it might make sense for a package to
+// filter out single kind of message that doesn't need to be shown.
+export interface NotificationsDelegate {
+  shouldShowMessage(params: ShowMessageRequestParams, name: string, projectPath: string): boolean
+  shouldShowMessageRequest(params: ShowMessageRequestParams, name: string, projectPath: string): boolean
+}
+
 /** Public: Adapts Atom's user notifications to those of the language server protocol. */
 export default class NotificationsAdapter {
   /** Public: Attach to a {LanguageClientConnection} to recieve events indicating when user notifications should be displayed. */
-  public static attach(connection: LanguageClientConnection, name: string, projectPath: string): void {
-    connection.onShowMessage((m) => NotificationsAdapter.onShowMessage(m, name, projectPath))
-    connection.onShowMessageRequest((m) => NotificationsAdapter.onShowMessageRequest(m, name, projectPath))
+  public static attach(
+    connection: LanguageClientConnection,
+    name: string,
+    projectPath: string,
+    delegate?: NotificationsDelegate
+  ): void {
+    connection.onShowMessage((m) => NotificationsAdapter.onShowMessage(m, name, projectPath, delegate))
+    connection.onShowMessageRequest((m) => NotificationsAdapter.onShowMessageRequest(m, name, projectPath, delegate))
   }
 
   /**
@@ -30,9 +44,14 @@ export default class NotificationsAdapter {
   public static onShowMessageRequest(
     params: ShowMessageRequestParams,
     name: string,
-    projectPath: string
+    projectPath: string,
+    delegate?: NotificationsDelegate
   ): Promise<MessageActionItem | null> {
     return new Promise((resolve, _reject) => {
+      if (delegate) {
+        let shouldProceed = delegate.shouldShowMessageRequest(params, name, projectPath)
+        if (!shouldProceed) return
+      }
       const options: NotificationOptions = {
         dismissable: true,
         detail: `${name} ${projectPath}`,
@@ -67,7 +86,16 @@ export default class NotificationsAdapter {
    * @param name The name of the language server so the user can identify the context of the message.
    * @param projectPath The path of the current project.
    */
-  public static onShowMessage(params: ShowMessageParams, name: string, projectPath: string): void {
+  public static onShowMessage(
+    params: ShowMessageParams,
+    name: string,
+    projectPath: string,
+    delegate?: NotificationsDelegate
+  ): void {
+    if (delegate) {
+      let shouldProceed = delegate.shouldShowMessage(params, name, projectPath)
+      if (!shouldProceed) return
+    }
     addNotificationForMessage(params.type, params.message, {
       dismissable: true,
       detail: `${name} ${projectPath}`,
