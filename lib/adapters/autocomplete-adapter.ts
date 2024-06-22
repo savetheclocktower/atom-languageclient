@@ -66,12 +66,12 @@ class PossiblyResolvedCompletionItem {
  */
 export default class AutocompleteAdapter {
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
-    return serverCapabilities.completionProvider != null
+    return Boolean(serverCapabilities.completionProvider)
   }
 
   public static canResolve(serverCapabilities: ServerCapabilities): boolean {
     return (
-      serverCapabilities.completionProvider != null && serverCapabilities.completionProvider.resolveProvider === true
+      serverCapabilities.completionProvider != null && Boolean(serverCapabilities.completionProvider.resolveProvider)
     )
   }
 

@@ -165,18 +165,27 @@ export default class SymbolAdapter {
   async canProvideSymbols(
     server: Awaited<ServerPromise>,
     meta: SymbolMeta
-  ): Promise<boolean> {
+  ): Promise<boolean | number> {
     if (server === null) return false
 
+    let {
+      workspaceSymbolProvider,
+      documentSymbolProvider,
+      referencesProvider
+    } = server.capabilities
+
     if (meta.type === 'project') {
-      let result = server.capabilities.workspaceSymbolProvider
-      return !!result
+      return !!workspaceSymbolProvider
     } else if (meta.type === 'file') {
-      let result = server.capabilities.documentSymbolProvider
-      return !!result
+      return !!documentSymbolProvider
     } else if (meta.type === 'project-find') {
-      let result = server.capabilities.referencesProvider
-      return !!result
+      if (referencesProvider) {
+        return 1
+      } else if (workspaceSymbolProvider) {
+        // Almost as useful as a references provider, but is more likely to
+        // return more than one result.
+        return 0.95
+      }
     }
     return false
   }

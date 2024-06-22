@@ -6,7 +6,7 @@ import { LanguageClientConnection, ServerCapabilities } from "../languageclient"
 export default class CodeHighlightAdapter {
   /** @returns A {Boolean} indicating this adapter can adapt the server based on the given serverCapabilities. */
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
-    return serverCapabilities.documentHighlightProvider === true
+    return Boolean(serverCapabilities.documentHighlightProvider)
   }
 
   /**

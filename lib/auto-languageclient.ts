@@ -38,7 +38,10 @@ import {
   SymbolKind,
   ShowMessageRequestParams,
   ResourceOperationKind,
-  FailureHandlingKind
+  FailureHandlingKind,
+  MarkupKind,
+  CodeActionKind,
+  PrepareSupportDefaultBehavior
 } from "./languageclient"
 import { ConsoleLogger, FilteredLogger, Logger } from "./logger"
 import {
@@ -53,7 +56,6 @@ import * as ac from "atom/autocomplete-plus"
 import { basename } from "path"
 import type * as codeActions from "./adapters/code-action-adapter"
 import type * as intentions from "./adapters/intentions-list-adapter"
-import type * as lint from "./adapters/linter-push-v2-adapter"
 import type * as symbol from "./adapters/symbol-adapter"
 import type * as refactor from "./adapters/rename-adapter"
 
@@ -164,10 +166,12 @@ export default class AutoLanguageClient {
       capabilities: {
         workspace: {
           applyEdit: true,
-          configuration: false,
+          configuration: false, // TODO
           workspaceEdit: {
             documentChanges: true,
             normalizesLineEndings: false,
+            // TODO: Ensure this is truly transactional, including all file
+            // operations; otherwise this needs to be `TextOnlyTransactional`.
             failureHandling: FailureHandlingKind.Transactional,
             changeAnnotationSupport: undefined,
             resourceOperations: [
@@ -198,6 +202,7 @@ export default class AutoLanguageClient {
           semanticTokens: undefined,
           codeLens: undefined,
           fileOperations: {
+            dynamicRegistration: false,
             // BLOCKED: on tree-view not providing hooks for "before file/dir created"
             willCreate: false,
             // BLOCKED: on tree-view not providing hooks for "before file/dir renamed"
@@ -218,7 +223,10 @@ export default class AutoLanguageClient {
             completionItem: {
               snippetSupport: true,
               commitCharactersSupport: false,
-              documentationFormat: [],
+              documentationFormat: [
+                MarkupKind.Markdown,
+                MarkupKind.PlainText
+              ],
               deprecatedSupport: false,
               preselectSupport: false,
               tagSupport: {
@@ -239,11 +247,49 @@ export default class AutoLanguageClient {
           },
           hover: {
             dynamicRegistration: false,
+            contentFormat: [
+              MarkupKind.Markdown,
+              MarkupKind.PlainText
+            ]
           },
           signatureHelp: {
             dynamicRegistration: false,
+            signatureInformation: {
+              documentationFormat: [
+                MarkupKind.Markdown,
+                MarkupKind.PlainText
+              ],
+              parameterInformation: {
+                labelOffsetSupport: false
+              },
+              activeParameterSupport: false,
+            },
+            contextSupport: false
           },
-          declaration: undefined,
+          declaration: {
+            dynamicRegistration: false,
+            // TODO: I think this determines whether the client receives
+            // `LocationLink`s? Not sure if it's worth it.
+            linkSupport: false
+          },
+          definition: {
+            dynamicRegistration: false,
+            // TODO: I think this determines whether the client receives
+            // `LocationLink`s? Not sure if it's worth it.
+            linkSupport: false
+          },
+          typeDefinition: {
+            dynamicRegistration: false,
+            // TODO: I think this determines whether the client receives
+            // `LocationLink`s? Not sure if it's worth it.
+            linkSupport: false
+          },
+          implementation: {
+            dynamicRegistration: false,
+            // TODO: I think this determines whether the client receives
+            // `LocationLink`s? Not sure if it's worth it.
+            linkSupport: false
+          },
           references: {
             dynamicRegistration: false,
           },
@@ -270,46 +316,64 @@ export default class AutoLanguageClient {
           onTypeFormatting: {
             dynamicRegistration: false,
           },
-          definition: {
-            dynamicRegistration: false,
-          },
           codeAction: {
             dynamicRegistration: false,
             codeActionLiteralSupport: {
               codeActionKind: {
-                // TODO explicitly support more?
                 valueSet: [
-                  'quickfix',
-                  'refactor',
-                  'refactor.extract',
-                  'refactor.inline',
-                  'refactor.rewrite',
-                  'source',
-                  'source.organizeImports',
-                  'source.fixAll'
+                  CodeActionKind.Empty,
+                  CodeActionKind.QuickFix,
+                  CodeActionKind.Refactor,
+                  CodeActionKind.RefactorExtract,
+                  CodeActionKind.RefactorInline,
+                  CodeActionKind.RefactorRewrite,
+                  CodeActionKind.Source,
+                  CodeActionKind.SourceOrganizeImports,
+                  CodeActionKind.SourceFixAll
                 ],
               },
             },
+            isPreferredSupport: false,
+            disabledSupport: false,
+            dataSupport: false,
+            resolveSupport: {
+              properties: []
+            },
+            honorsChangeAnnotations: false
           },
           codeLens: {
             dynamicRegistration: false,
           },
           documentLink: {
             dynamicRegistration: false,
+            tooltipSupport: false
           },
           colorProvider: {
             dynamicRegistration: false,
           },
           rename: {
             dynamicRegistration: false,
+            prepareSupport: true,
+            prepareSupportDefaultBehavior: PrepareSupportDefaultBehavior.Identifier,
+            honorsChangeAnnotations: false
           },
           moniker: {
+            dynamicRegistration: false,
+          },
+          typeHierarchy: {
+            dynamicRegistration: false,
+          },
+          inlineValue: {
+            dynamicRegistration: false,
+          },
+          inlayHint: {
             dynamicRegistration: false,
           },
           publishDiagnostics: {
             relatedInformation: true,
             tagSupport: {
-              // BLOCKED: on steelbrain/linter supporting ways of denoting useless code and deprecated symbols
+              // BLOCKED: on steelbrain/linter supporting ways of denoting
+              // useless code and deprecated symbols
               valueSet: [],
             },
             versionSupport: false,
@@ -319,15 +383,20 @@ export default class AutoLanguageClient {
           callHierarchy: {
             dynamicRegistration: false,
           },
-          implementation: undefined,
-          typeDefinition: undefined,
           foldingRange: undefined,
           selectionRange: undefined,
           linkedEditingRange: undefined,
           semanticTokens: undefined,
         },
         general: {
-          regularExpressions: undefined,
+          staleRequestSupport: {
+            cancel: false,
+            retryOnContentModified: []
+          },
+          regularExpressions: {
+            engine: 'ECMAScript',
+            version: 'ES2020'
+          },
           markdown: undefined,
         },
         window: {
@@ -761,6 +830,15 @@ export default class AutoLanguageClient {
     return message
   }
 
+  /**
+   * A callback to allow a package to add intentions to the list that
+   * accompanies a diagnostic message.
+   *
+   * The intentions returned by this callback, if any, will be added to the
+   * list of actions provided by the language server.
+   *
+   * @returns Either `null` or a list of `Intention`s.
+   */
   getIntentionsForLinterMessage(
     _bundle: intentions.MessageBundle,
     _editor: TextEditor

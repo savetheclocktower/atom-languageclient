@@ -20,7 +20,7 @@ export default class DefinitionAdapter {
    *   the given serverCapabilities.
    */
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
-    return serverCapabilities.definitionProvider === true
+    return Boolean(serverCapabilities.definitionProvider)
   }
 
   /**

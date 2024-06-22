@@ -22,7 +22,7 @@ export default class RenameAdapter {
    * Whether the server provides rename support.
    */
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
-    return serverCapabilities.renameProvider === true
+    return Boolean(serverCapabilities.renameProvider)
   }
 
   /**

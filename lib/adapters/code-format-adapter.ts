@@ -28,8 +28,8 @@ export default class CodeFormatAdapter {
    */
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
     return (
-      serverCapabilities.documentRangeFormattingProvider === true ||
-      serverCapabilities.documentFormattingProvider === true
+      Boolean(serverCapabilities.documentRangeFormattingProvider) ||
+      Boolean(serverCapabilities.documentFormattingProvider)
     )
   }
 

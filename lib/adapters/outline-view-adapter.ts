@@ -30,7 +30,7 @@ export default class OutlineViewAdapter {
    *   the given serverCapabilities.
    */
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
-    return serverCapabilities.documentSymbolProvider === true
+    return Boolean(serverCapabilities.documentSymbolProvider)
   }
 
   /**
