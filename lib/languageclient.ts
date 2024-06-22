@@ -7,19 +7,9 @@ export * from "vscode-languageserver-protocol"
 
 // TODO: Why isn't this exposed in the type definitions?
 interface ProgressParams<T> {
-	/**
-	 * The progress token provided by the client or server.
-	 */
 	token: lsp.ProgressToken;
-
-	/**
-	 * The progress data.
-	 */
 	value: T;
 }
-
-
-type WorkDoneProgress = lsp.WorkDoneProgressBegin | lsp.WorkDoneProgressReport | lsp.WorkDoneProgressEnd
 
 export interface KnownNotifications {
   "textDocument/publishDiagnostics": lsp.PublishDiagnosticsParams
@@ -641,7 +631,7 @@ export class LanguageClientConnection extends EventEmitter {
    *
    * @param params The {CallHierarchyIncomingCallsParams} that containing {textDocument} and {position} associated with
    *   the calling.
-   * @param cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
+   * @param _cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
    * @returns A {Promise} containing an {Array} of {CallHierarchyItem}s that corresponding to the request.
    */
   public prepareCallHierarchy(
@@ -655,7 +645,7 @@ export class LanguageClientConnection extends EventEmitter {
    * Public: Send a `callHierarchy/incomingCalls` request.
    *
    * @param params The {CallHierarchyIncomingCallsParams} that identifies {CallHierarchyItem} to get incoming calls.
-   * @param cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
+   * @param _cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
    * @returns A {Promise} containing an {Array} of {CallHierarchyIncomingCall}s for the function that called by the
    *   function given to the parameter.
    */
@@ -670,7 +660,7 @@ export class LanguageClientConnection extends EventEmitter {
    * Public: Send a `callHierarchy/outgoingCalls` request.
    *
    * @param params The {CallHierarchyOutgoingCallsParams} that identifies {CallHierarchyItem} to get outgoing calls.
-   * @param cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
+   * @param _cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
    * @returns A {Promise} containing an {Array} of {CallHierarchyIncomingCall}s for the function that calls the function
    *   given to the parameter.
    */

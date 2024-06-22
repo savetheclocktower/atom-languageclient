@@ -19,8 +19,8 @@ function isWorkDoneProgress(value: any): value is WorkDoneProgressBegin | WorkDo
 }
 
 /**
- * Public: Handles progress reporting on server-initiated tasks. Funnels those tasks to
- * `busy-signal`’s `atom-ide-busy-signal` service.
+ * Public: Handles progress reporting on server-initiated tasks. Funnels those
+ * tasks to `busy-signal`’s `atom-ide-busy-signal` service.
  */
 export default class WorkDoneProgressAdapter {
   static JOBS: Map<ProgressToken, BusyMessage> = new Map()
