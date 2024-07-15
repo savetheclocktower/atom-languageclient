@@ -21,10 +21,17 @@ import { promises as fsp, Stats } from "fs"
 // @ts-ignore Messed-up types file
 import rimraf from "rimraf"
 
-type CodeEdit = {
-  path: string,
-  range: Range,
-  newText: string
+// Options to pass to `ApplyEditAdapter.apply`.
+type ApplyWorkspaceEditOptions = {
+  // Whether to save after making changes to buffers:
+  //
+  // - 'all' means we will always save after making changes. (Not recommended.)
+  // - 'none' means we will never save after making changes.
+  // - 'unmodified' means that, if the file was unmodified from disk before we
+  //   applied changes, we will save it once the changes were made.
+  //
+  // For backward compatibility, 'unmodified' is the default value.
+  save: 'all' | 'none' | 'unmodified'
 }
 
 /** Public: Adapts workspace/applyEdit commands to editors. */
@@ -49,7 +56,10 @@ export default class ApplyEditAdapter {
     return layer
   }
 
-  /** Tries to apply edits and reverts if anything goes wrong. Returns the checkpoint, so the caller can revert changes if needed. */
+  /**
+    * Tries to apply edits and reverts if anything goes wrong. Returns the
+    * checkpoint, so the caller can revert changes if needed.
+   */
   public static applyEdits(editor: TextEditor, edits: atomIde.TextEdit[]): number {
     let buffer = editor.getBuffer()
     const checkpoint = buffer.createCheckpoint()
@@ -89,7 +99,10 @@ export default class ApplyEditAdapter {
     return ApplyEditAdapter.apply(params.edit)
   }
 
-  public static async apply(workspaceEdit: WorkspaceEdit): Promise<ApplyWorkspaceEditResponse> {
+  public static async apply(
+    workspaceEdit: WorkspaceEdit,
+    options: ApplyWorkspaceEditOptions = { save: 'none' }
+  ): Promise<ApplyWorkspaceEditResponse> {
     normalize(workspaceEdit)
 
     // Keep checkpoints from all successful buffer edits
@@ -109,10 +122,18 @@ export default class ApplyEditAdapter {
           activatePane: false,
           activateItem: false,
         })) as TextEditor
+        let wasModified = editor.isModified()
         const buffer = editor.getBuffer()
         const edits = Convert.convertLsTextEdits(edit.edits)
         const checkpoint = ApplyEditAdapter.applyEdits(editor, edits)
         checkpoints.push({ buffer, checkpoint })
+        if (options.save === 'none') {
+          return
+        } else if (options.save === 'unmodified' && wasModified) {
+          return
+        } else {
+          await editor.save()
+        }
       }
     )
 
