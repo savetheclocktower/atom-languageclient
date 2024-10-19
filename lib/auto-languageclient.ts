@@ -444,7 +444,7 @@ export default class AutoLanguageClient {
    * class MyLanguageClient extends AutoLanguageClient {
    *   getLanguageIdFromEditor(editor: TextEditor) {
    *     if (editor.getGrammar().scopeName === "source.myLanguage") {
-   *       return "myCustumLanguageId"
+   *       return "myCustomLanguageId"
    *     }
    *     return super.getLanguageIdFromEditor(editor)
    *   }
@@ -455,7 +455,7 @@ export default class AutoLanguageClient {
    *   notification.
    */
   protected getLanguageIdFromEditor(editor: TextEditor): string {
-    return editor?.getGrammar().name
+    return Utils.getLanguageIdFromEditor(editor) ?? ''
   }
 
   /**

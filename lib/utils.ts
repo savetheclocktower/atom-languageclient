@@ -1,6 +1,6 @@
 import { join, resolve } from "path"
 import { existsSync } from "fs"
-import { Point, TextBuffer, TextEditor, Range, BufferScanResult } from "atom"
+import { Grammar, Point, TextBuffer, TextEditor, Range, BufferScanResult } from "atom"
 import { CancellationToken, CancellationTokenSource } from "vscode-jsonrpc"
 
 export type ReportBusyWhile = <T>(title: string, f: () => Promise<T>) => Promise<T>
@@ -127,7 +127,7 @@ function isTextEditor(thing: any): thing is TextEditor {
 
 /**
  * Finds all open {TextEditor} instances for a given file path.
- * 
+ *
  * @returns An array of {@link TextEditor}s.
  */
 export function findAllTextEditorsForPath(path: string): TextEditor[] {
@@ -160,4 +160,68 @@ export function findFirstTextEditorForPath(path: string): TextEditor | undefined
     }
   }
   return undefined
+}
+
+// The LSP spec identifies languages by an arbitrary ID that often (but not
+// always) matches the lowercase name of the language:
+//
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
+//
+// It's easy enough to hard-code all the builtin Pulsar grammars that match
+// entries in this table. We might want to expose a way for grammars from
+// community packages to override the default logic for this ID (lowercasing
+// the display name).
+//
+// IDE packages can substitute their own logic by overriding
+// `getLanguageIdFromEditor`.
+const LANGUAGE_IDS: Record<string, string> = {
+  'source.coffee': 'coffeescript',
+  'source.c': 'c',
+  'source.clojure': 'clojure',
+  'source.cpp': 'cpp',
+  'source.cs': 'csharp',
+  'source.css': 'css',
+  'text.git-commit': 'git-commit',
+  'text.git-rebase': 'git-rebase',
+  'source.go': 'go',
+  'text.html.basic': 'html',
+  'source.java': 'java',
+  // TODO: Consider reporting `source.js` as `javascriptreact`?
+  'source.js': 'javascript',
+  'source.jsx': 'javascriptreact',
+  'source.json': 'json',
+  'source.less': 'less',
+  'source.lua': 'lua',
+  'source.gfm': 'markdown',
+  'source.objc': 'objective-c',
+  'source.perl': 'perl',
+  'text.html.php': 'php',
+  'source.php': 'php',
+  'source.python': 'python',
+  'source.ruby': 'ruby',
+  'source.rust': 'rust',
+  'source.sass': 'sass',
+  'source.scss': 'scss',
+  'source.shell': 'shellscript',
+  'source.sql': 'sql',
+  'source.ts': 'typescript',
+  'source.tsx': 'typescriptreact',
+  'text.xml': 'xml',
+  'source.yaml': 'yaml'
+}
+
+// Given a grammar, return its language identifier as expected by the LSP spec.
+export function getLanguageIdFromGrammar(grammar: Grammar): string | null {
+  let scopeName = grammar.scopeName
+  if (scopeName in LANGUAGE_IDS) {
+    return LANGUAGE_IDS[scopeName]
+  }
+  return grammar.name.toLowerCase()
+}
+
+// Given an editor, return the language identifier of the editor’s grammar as expected by the LSP spec.
+export function getLanguageIdFromEditor(editor: TextEditor): string | null {
+  let grammar = editor?.getGrammar()
+  if (!grammar) return null
+  return getLanguageIdFromGrammar(grammar)
 }
