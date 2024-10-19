@@ -58,6 +58,7 @@ import type * as codeActions from "./adapters/code-action-adapter"
 import type * as intentions from "./adapters/intentions-list-adapter"
 import type * as symbol from "./adapters/symbol-adapter"
 import type * as refactor from "./adapters/rename-adapter"
+import WorkspaceFileOperationsAdapter, { TreeViewV2Service } from "./adapters/workspace-file-operations-adapter"
 
 export {
   ActiveServer,
@@ -101,6 +102,9 @@ export default class AutoLanguageClient {
 
   /** Available if consumeBusySignal is setup */
   protected busySignalService?: atomIde.BusySignalService
+
+  /** Available if consumeTreeViewV2 is setup */
+  protected treeViewService?: TreeViewV2Service
 
   protected processStdErr: string = ""
   protected logger!: Logger
@@ -203,12 +207,14 @@ export default class AutoLanguageClient {
           codeLens: undefined,
           fileOperations: {
             dynamicRegistration: false,
-            // BLOCKED: on tree-view not providing hooks for "before file/dir created"
-            willCreate: false,
-            // BLOCKED: on tree-view not providing hooks for "before file/dir renamed"
-            willRename: false,
-            // BLOCKED: on tree-view not providing hooks for "before file/dir deleted"
-            willDelete: false,
+
+            willCreate: !!this.treeViewService,
+            willRename: !!this.treeViewService,
+            willDelete: !!this.treeViewService,
+
+            didCreate: !!this.treeViewService,
+            didRename: !!this.treeViewService,
+            didDelete: !!this.treeViewService
           },
         },
         textDocument: {
@@ -890,6 +896,14 @@ export default class AutoLanguageClient {
       server.disposable.add(docSyncAdapter)
     }
 
+    if (WorkspaceFileOperationsAdapter.canAdapt(server.capabilities) && this.treeViewService) {
+      const workspaceFileOperationsAdapter = new WorkspaceFileOperationsAdapter(
+        server.connection,
+        this.treeViewService,
+        server.capabilities?.workspace?.fileOperations
+      )
+    }
+
     this._intentionsManager = this.findOrCreateIntentionsManager()
 
     const linterPushV2 = new LinterPushV2Adapter(
@@ -1566,6 +1580,12 @@ export default class AutoLanguageClient {
   public consumeBusySignal(service: atomIde.BusySignalService): Disposable {
     this.busySignalService = service
     return new Disposable(() => delete this.busySignalService)
+  }
+
+  public consumeTreeViewV2(service: TreeViewV2Service) {
+    console.log('Consuming tree view!', service)
+    this.treeViewService = service
+    return new Disposable(() => delete this.treeViewService)
   }
 
   /**

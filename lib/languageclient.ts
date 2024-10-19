@@ -239,6 +239,54 @@ export class LanguageClientConnection extends EventEmitter {
 		this._sendNotification(lsp.WorkDoneProgressCancelNotification.type, params)
   }
 
+	/**
+	 * Public: Send a `workspace/willCreateFiles` request.
+	 * @param params
+	 */
+	public willCreateFiles(params: lsp.CreateFilesParams): Promise<lsp.WorkspaceEdit | null> {
+	  return this._sendRequest(lsp.WillCreateFilesRequest.type, params)
+	}
+
+	/**
+	 * Public: Send a `workspace/didCreateFiles` notification.
+	 * @param params
+	 */
+	public didCreateFiles(params: lsp.CreateFilesParams): void {
+		this._sendNotification(lsp.DidCreateFilesNotification.type, params)
+	}
+
+	/**
+	 * Public: Send a `workspace/willRenameFiles` request.
+	 * @param params
+	 */
+	public willRenameFiles(params: lsp.RenameFilesParams): Promise<lsp.WorkspaceEdit | null> {
+		return this._sendRequest(lsp.WillRenameFilesRequest.type, params)
+	}
+
+	/**
+	 * Public: Send a `workspace/didRenameFiles` notification.
+	 * @param params
+	 */
+	public didRenameFiles(params: lsp.RenameFilesParams): void {
+		this._sendNotification(lsp.DidRenameFilesNotification.type, params)
+	}
+
+	/**
+	 * Public: Send a `workspace/willDeleteFiles` request.
+	 * @param params
+	 */
+	public willDeleteFiles(params: lsp.DeleteFilesParams): Promise<lsp.WorkspaceEdit | null> {
+		return this._sendRequest(lsp.WillDeleteFilesRequest.type, params)
+	}
+
+	/**
+	 * Public: Send a `workspace/didDeleteFiles` notification.
+	 * @param params
+	 */
+	public didDeleteFiles(params: lsp.DeleteFilesParams): void {
+		this._sendNotification(lsp.DidDeleteFilesNotification.type, params)
+	}
+
   /**
    * Public: Register a callback for the `$/progress` generic message.
    * @param callback
