@@ -1174,9 +1174,16 @@ export default class AutoLanguageClient {
         let server = await this._serverManager.getServer(meta.editor)
         if (!server) return false
 
-        let scopes = this.getGrammarScopes()
-        let baseScope = meta.editor.getGrammar()?.scopeName
-        if (!scopes.includes(baseScope)) return false
+        // For “list symbols in this file” and “go to this declaration,” we
+        // want to consider only language servers that match the grammar of the
+        // current file. For “open a project-wide symbol search palette,” the
+        // grammar of the current file is irrelevant, and we should allow this
+        // provider to opt in if it's active.
+        if (meta.type !== 'project-find') {
+          let scopes = this.getGrammarScopes()
+          let baseScope = meta.editor.getGrammar()?.scopeName
+          if (!scopes.includes(baseScope)) return false
+        }
 
         return adapter.canProvideSymbols(server, meta)
       },
