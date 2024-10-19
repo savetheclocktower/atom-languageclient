@@ -1179,7 +1179,7 @@ export default class AutoLanguageClient {
         // current file. For “open a project-wide symbol search palette,” the
         // grammar of the current file is irrelevant, and we should allow this
         // provider to opt in if it's active.
-        if (meta.type !== 'project-find') {
+        if (meta.type !== 'project') {
           let scopes = this.getGrammarScopes()
           let baseScope = meta.editor.getGrammar()?.scopeName
           if (!scopes.includes(baseScope)) return false
