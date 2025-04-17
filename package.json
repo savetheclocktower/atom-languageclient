@@ -1,6 +1,6 @@
 {
   "name": "@savetheclocktower/atom-languageclient",
-  "version": "1.17.11",
+  "version": "1.17.12",
   "description": "Integrate Language Servers with Pulsar (fork of atom-languageclient)",
   "repository": "https://github.com/savetheclocktower/atom-languageclient",
   "license": "MIT",
