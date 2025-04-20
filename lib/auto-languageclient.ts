@@ -93,6 +93,7 @@ export default class AutoLanguageClient {
   private _disposable!: CompositeDisposable
   private _serverManager!: ServerManager
   private _intentionsManager?: IntentionsListAdapter
+  private _documentSyncAdapter?: DocumentSyncAdapter
   private _consoleDelegate?: atomIde.ConsoleService
   private _linterDelegate?: linter.IndieDelegate
   private _signatureHelpRegistry?: atomIde.SignatureHelpRegistry
@@ -872,7 +873,6 @@ export default class AutoLanguageClient {
 
   /** Start adapters that are not shared between servers. */
   private startExclusiveAdapters(server: ActiveServer): void {
-    ApplyEditAdapter.attach(server.connection)
     if (this.busySignalService) {
       WorkDoneProgressAdapter.attach(server.connection, this.busySignalService)
     }
@@ -886,15 +886,17 @@ export default class AutoLanguageClient {
     })
 
     if (DocumentSyncAdapter.canAdapt(server.capabilities)) {
-      const docSyncAdapter = new DocumentSyncAdapter(
+      this._documentSyncAdapter = new DocumentSyncAdapter(
         server.connection,
         (editor) => this.shouldSyncForEditor(editor, server.projectPath),
         server.capabilities.textDocumentSync,
         this.reportBusyWhile,
         (editor) => this.getLanguageIdFromEditor(editor)
       )
-      server.disposable.add(docSyncAdapter)
+      server.disposable.add(this._documentSyncAdapter)
     }
+
+    ApplyEditAdapter.attach(server.connection, this._documentSyncAdapter)
 
     if (WorkspaceFileOperationsAdapter.canAdapt(server.capabilities) && this.treeViewService) {
       const workspaceFileOperationsAdapter = new WorkspaceFileOperationsAdapter(
@@ -1401,7 +1403,7 @@ export default class AutoLanguageClient {
       return []
     }
 
-    return CodeFormatAdapter.formatDocument(server.connection, editor)
+    return CodeFormatAdapter.formatDocument(server.connection, editor, this._documentSyncAdapter)
   }
 
   public provideOnTypeCodeFormat(): atomIde.OnTypeCodeFormatProvider {

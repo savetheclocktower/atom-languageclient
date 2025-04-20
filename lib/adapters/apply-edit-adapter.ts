@@ -20,6 +20,7 @@ import {
 import { promises as fsp, Stats } from "fs"
 // @ts-ignore Messed-up types file
 import rimraf from "rimraf"
+import DocumentSyncAdapter from "./document-sync-adapter"
 
 // Options to pass to `ApplyEditAdapter.apply`.
 type ApplyWorkspaceEditOptions = {
@@ -38,12 +39,20 @@ type ApplyWorkspaceEditOptions = {
 export default class ApplyEditAdapter {
   private static _markerLayersForEditors = new WeakMap<TextEditor, DisplayMarkerLayer>()
 
+  private static _documentSyncAdapter: DocumentSyncAdapter | null = null
+
   /**
    * Public: Attach to a {@link LanguageClientConnection} to receive edit
    * events.}
    * @param connection
    */
-  public static attach(connection: LanguageClientConnection): void {
+  public static attach(
+    connection: LanguageClientConnection,
+    documentSyncAdapter?: DocumentSyncAdapter
+  ): void {
+    if (documentSyncAdapter) {
+      this._documentSyncAdapter = documentSyncAdapter
+    }
     connection.onApplyEdit((m) => ApplyEditAdapter.onApplyEdit(m))
   }
 
@@ -105,9 +114,47 @@ export default class ApplyEditAdapter {
   ): Promise<ApplyWorkspaceEditResponse> {
     normalize(workspaceEdit)
 
-    // Keep checkpoints from all successful buffer edits
+    // Keep checkpoints from all successful buffer edits.
     const checkpoints: Array<{ buffer: TextBuffer; checkpoint: number }> = []
 
+    // Here are the ways that a `WorkspaceEdit` could plausibly fail:
+    //
+    // * A `TextDocumentEdit` is nonsensical or invalid in some way (e.g.,
+    //   describes an invalid range).
+    // * Multiple `TextDocumentEdit`s are provided and are invalid as a group
+    //   (e.g., they overlap).
+    // * One or more of the edits assumes a version of the document that is no
+    //   longer valid.
+    // * We're asked to create a file, but the file already exists.
+    // * We're asked to rename a file, but the destination name already exists.
+    // * We're asked to delete a file, but the file does not exist.
+    // * One of the file-based operations fails because of a lack of
+    //   permissions.
+    //
+    // We've listed our `workspaceEdit.failureHandling` capability as
+    // “text-only transactional.” That means that, if we somehow fail to apply
+    // this `WorkspaceEdit`, we commit to rolling back the `TextDocumentEdit`s
+    // but not any of the resource (file) operations.
+    //
+    // It's good that we have this option because we don't really have the
+    // capability of doing otherwise in the general case. The LSP spec does not
+    // restrict the ability of a `WorkspaceEdit` to interleave various kinds of
+    // edits; in fact, if resource operations are included, the client _must_
+    // apply edits in the prescribed order. (This is surely because a single
+    // `WorkspaceEdit` can, e.g., both create a file and add content to it, so
+    // one must come before the other.)
+    //
+    // We could go to great lengths to try to bundle arbitrary batches of
+    // filesystem changes into a single transaction, but not even VS Code
+    // appears to do this. Instead, we'll apply `WorkspaceEdit`s as the spec
+    // directs us to, and if they fail… well, we didn't over-promise.
+    //
+    // If a specific IDE package wants to opt out of this behavior, it can
+    // override `getInitializeParams` and modify what it reports to a specific
+    // language server; it'd probably want to change
+    // `capabilities.workspace.resourceOperations` to `undefined` before
+    // returning it. This would signal to the language server that it should
+    // not try to send the client any resource operations in the first place.
     const promises = (workspaceEdit.documentChanges || []).map(
       async (edit): Promise<void> => {
         if (!TextDocumentEdit.is(edit)) {
@@ -116,14 +163,38 @@ export default class ApplyEditAdapter {
           })
         }
         const path = Convert.uriToPath(edit.textDocument.uri)
+
+        // TODO: Feels weird to force an editor to open for each unique buffer
+        // to which we want to apply edits. But it's necessary when
+        // `options.save` is `none`, since that forces us to give the modified
+        // state a UI so that the user can approve or reject the edit.
+        //
+        // But when `options.save` is `all` or `unmodified`, we should be able
+        // to get away with applying edits to `TextBuffer`s headlessly the way
+        // we do in other code paths.
         const editor = (await atom.workspace.open(path, {
           searchAllPanes: true,
           // Open new editors in the background.
           activatePane: false,
           activateItem: false,
         })) as TextEditor
+
         let wasModified = editor.isModified()
         const buffer = editor.getBuffer()
+
+        // A language server can give us a `VersionedTextDocumentIdentifier`
+        // instead of a simple `TextDocumentIdentifier`. This is safer because
+        // it tells us the versions of the documents against which this
+        // `WorkspaceEdit` was made.
+        if (edit.textDocument.version && this._documentSyncAdapter) {
+          let editorSyncAdapter = this._documentSyncAdapter.getEditorSyncAdapter(editor)
+          if (editorSyncAdapter) {
+            let versionedTextDocumentIdentifier = editorSyncAdapter.getVersionedTextDocumentIdentifier()
+            if (edit.textDocument.version !== versionedTextDocumentIdentifier.version) {
+              throw new Error(`Version mismatch on document: ${edit.textDocument.uri}; expected version ${edit.textDocument.version} but got version ${versionedTextDocumentIdentifier.version}`)
+            }
+          }
+        }
         const edits = Convert.convertLsTextEdits(edit.edits)
         const checkpoint = ApplyEditAdapter.applyEdits(editor, edits)
         checkpoints.push({ buffer, checkpoint })
@@ -137,7 +208,8 @@ export default class ApplyEditAdapter {
       }
     )
 
-    // Apply all edits or fail and revert everything
+    // Apply all edits… or fail and revert everything that we can possibly
+    // revert.
     const applied = await Promise.all(promises)
       .then(() => true)
       .catch((err) => {

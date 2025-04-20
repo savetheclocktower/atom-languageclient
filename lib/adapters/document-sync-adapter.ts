@@ -190,18 +190,27 @@ export class TextEditorSyncAdapter {
       this._disposable.add(changeTracking)
     }
 
-    // These handlers are attached only if server supports them
+    // These handlers are attached only if the server supports them.
     if (_documentSync.willSave) {
-      this._disposable.add(_editor.getBuffer().onWillSave(this.willSave.bind(this)))
+      this._disposable.add(
+        _editor.getBuffer().onWillSave(this.willSave.bind(this))
+      )
     }
     if (_documentSync.willSaveWaitUntil) {
-      this._disposable.add(_editor.getBuffer().onWillSave(this.willSaveWaitUntil.bind(this)))
+      this._disposable.add(
+        _editor.getBuffer().onWillSave(this.willSaveWaitUntil.bind(this))
+      )
     }
-    // Send close notifications unless it's explicitly disabled
+    // Send close notifications unless it's explicitly disabled.
     if (_documentSync.openClose !== false) {
-      this._disposable.add(_editor.onDidDestroy(this.didClose.bind(this)))
+      this._disposable.add(
+        _editor.onDidDestroy(this.didClose.bind(this))
+      )
     }
-    this._disposable.add(_editor.onDidSave(this.didSave.bind(this)), _editor.onDidChangePath(this.didRename.bind(this)))
+    this._disposable.add(
+      _editor.onDidSave(this.didSave.bind(this)),
+      _editor.onDidChangePath(this.didRename.bind(this))
+    )
 
     this._currentUri = this.getEditorUri()
 
@@ -354,6 +363,14 @@ export class TextEditorSyncAdapter {
 
   private _getVersion(filePath: string): number {
     return this._versions.get(filePath) || 1
+  }
+
+  getVersion(): number {
+    const filePath = this._editor.getPath()
+    if (filePath == null) {
+      return 1
+    }
+    return this._getVersion(filePath)
   }
 
   /**
