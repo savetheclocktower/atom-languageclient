@@ -18,6 +18,7 @@ import DefinitionAdapter from "./adapters/definition-adapter"
 import { atomIdeDiagnosticsToLSDiagnostics } from './adapters/diagnostic-adapter'
 import DocumentSyncAdapter from "./adapters/document-sync-adapter"
 import FindReferencesAdapter from "./adapters/find-references-adapter"
+import HoverAdapter, { HoverInformation, HoverProvider } from "./adapters/hover-adapter"
 import IntentionsListAdapter from "./adapters/intentions-list-adapter"
 import LinterPushV2Adapter from "./adapters/linter-push-v2-adapter"
 import LoggingConsoleAdapter from "./adapters/logging-console-adapter"
@@ -116,6 +117,7 @@ export default class AutoLanguageClient {
   protected autoComplete?: AutocompleteAdapter
   protected callHierarchy?: typeof CallHierarchyAdapter
   protected datatip?: DatatipAdapter
+  protected hover?: HoverAdapter
   protected definitions?: DefinitionAdapter
   protected findReferences?: FindReferencesAdapter
   protected outlineView?: OutlineViewAdapter
@@ -1329,6 +1331,38 @@ export default class AutoLanguageClient {
 
     this.datatip = this.datatip || new DatatipAdapter()
     return this.datatip.getDatatip(server.connection, editor, point)
+  }
+
+  // Hover (simple Datatip alternative) via LS textdocument/hover
+
+  /**
+   * The priority value to use for hover providers. Override this method to
+   * customize the priority.
+   */
+  protected getPriorityForHover(): number {
+    return 1
+  }
+
+  public provideHover(): HoverProvider {
+    return {
+      name: this.name,
+      packageName: this.getPackageName(),
+      priority: this.getPriorityForHover(),
+      grammarScopes: this.getGrammarScopes(),
+      validForScope: (scopeName: string) => {
+        return this.getGrammarScopes().includes(scopeName)
+      },
+      hover: this.getHover.bind(this)
+    }
+  }
+
+  protected async getHover(editor: TextEditor, point: Point): Promise<HoverInformation | null> {
+    const server = await this._serverManager.getServer(editor)
+    if (server == null || !HoverAdapter.canAdapt(server.capabilities)) {
+      return null
+    }
+    this.hover ??= new HoverAdapter()
+    return this.hover.getHover(server.connection, editor, point)
   }
 
   // Console via LS logging---------------------------------------------
