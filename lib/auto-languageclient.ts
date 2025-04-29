@@ -10,7 +10,7 @@ import ApplyEditAdapter from "./adapters/apply-edit-adapter"
 import AutocompleteAdapter, { grammarScopeToAutoCompleteSelector } from "./adapters/autocomplete-adapter"
 import * as CallHierarchyAdapter from "./adapters/call-hierarchy-adapter"
 import CodeActionAdapter from "./adapters/code-action-adapter"
-import CodeFormatAdapter from "./adapters/code-format-adapter"
+import CodeFormatAdapter, { CodeFormatType } from "./adapters/code-format-adapter"
 import CodeHighlightAdapter from "./adapters/code-highlight-adapter"
 import CommandExecutionAdapter from "./adapters/command-execution-adapter"
 import DatatipAdapter from "./adapters/datatip-adapter"
@@ -1350,9 +1350,20 @@ export default class AutoLanguageClient {
   public provideCodeFormat(): atomIde.RangeCodeFormatProvider {
     return {
       grammarScopes: this.getGrammarScopes(),
-      priority: 1,
+      priority: this.getPriorityForCodeFormat('range'),
       formatCode: this.getCodeFormat.bind(this),
     }
+  }
+
+  /**
+   * The priority value to use for code format providers. Override this
+   * method to customize the priority.
+   *
+   * Receives a `type` argument that distinguishes between types of code
+   * format requests.
+   */
+  protected getPriorityForCodeFormat(_type: CodeFormatType): number {
+    return 1
   }
 
   protected async getCodeFormat(editor: TextEditor, range: Range): Promise<atomIde.TextEdit[]> {
@@ -1367,7 +1378,7 @@ export default class AutoLanguageClient {
   public provideRangeCodeFormat(): atomIde.RangeCodeFormatProvider {
     return {
       grammarScopes: this.getGrammarScopes(),
-      priority: 1,
+      priority: this.getPriorityForCodeFormat('range'),
       formatCode: this.getRangeCodeFormat.bind(this),
     }
   }
@@ -1384,7 +1395,7 @@ export default class AutoLanguageClient {
   public provideFileCodeFormat(): atomIde.FileCodeFormatProvider {
     return {
       grammarScopes: this.getGrammarScopes(),
-      priority: 1,
+      priority: this.getPriorityForCodeFormat('file'),
       formatEntireFile: this.getFileCodeFormat.bind(this),
     }
   }
@@ -1392,7 +1403,7 @@ export default class AutoLanguageClient {
   public provideOnSaveCodeFormat(): atomIde.OnSaveCodeFormatProvider {
     return {
       grammarScopes: this.getGrammarScopes(),
-      priority: 1,
+      priority: this.getPriorityForCodeFormat('onSave'),
       formatOnSave: this.getFileCodeFormat.bind(this),
     }
   }
@@ -1409,7 +1420,7 @@ export default class AutoLanguageClient {
   public provideOnTypeCodeFormat(): atomIde.OnTypeCodeFormatProvider {
     return {
       grammarScopes: this.getGrammarScopes(),
-      priority: 1,
+      priority: this.getPriorityForCodeFormat('onType'),
       formatAtPosition: this.getOnTypeCodeFormat.bind(this),
     }
   }
@@ -1566,6 +1577,14 @@ export default class AutoLanguageClient {
     return RenameAdapter.getPrepareRename(server.connection, editor, position)
   }
 
+  /**
+   * The priority value to use for signature help providers. Override this
+   * method to customize the priority.
+   */
+  protected getPriorityForSignatureHelp(): number {
+    return 1
+  }
+
   public consumeSignatureHelp(registry: atomIde.SignatureHelpRegistry): Disposable {
     this._signatureHelpRegistry = registry
     for (const server of this._serverManager.getActiveServers()) {
@@ -1585,7 +1604,6 @@ export default class AutoLanguageClient {
   }
 
   public consumeTreeViewV2(service: TreeViewV2Service) {
-    console.log('Consuming tree view!', service)
     this.treeViewService = service
     return new Disposable(() => delete this.treeViewService)
   }
