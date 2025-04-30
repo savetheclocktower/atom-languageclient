@@ -156,15 +156,22 @@ export default class AutoLanguageClient {
     throw Error("Must override startServerProcess to start language server process when extending AutoLanguageClient")
   }
 
-  // You might want to override these for different behavior
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // You might want to override these for different behavior.
+  // -------------------------------------------------------------------------
 
-  /** (Optional) Determine whether we should start a server for a given editor if we don't have one yet */
+  /**
+   * (Optional) Determine whether we should start a server for a given editor
+   * if we don't have one yet.
+   */
   protected shouldStartForEditor(editor: TextEditor): boolean {
     return this.getGrammarScopes().includes(editor?.getGrammar().scopeName)
   }
 
-  /** (Optional) Return the parameters used to initialize a client - you may want to extend capabilities */
+  /**
+   * (Optional) Return the parameters used to initialize a client - you may
+   * want to extend capabilities.
+   */
   protected getInitializeParams(projectPath: string, lsProcess: LanguageServerProcess): ls.InitializeParams {
     const rootUri = Convert.pathToUri(projectPath)
     return {
