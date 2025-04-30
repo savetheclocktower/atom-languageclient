@@ -1,18 +1,25 @@
 # ~~Atom~~ Pulsar Language Server Protocol Client (Forked!)
 
-This repo was moved from [atom/atom-languageclient](https://github.com/atom/atom-languageclient)
+This repo was moved from [atom/atom-languageclient](https://github.com/atom/atom-languageclient).
 
-Provide integration support for adding Language Server Protocol servers to Pulsar.
+Provide integration support for adding [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) servers to Pulsar.
 
 ---
 
 ## I followed a link from a package README. What functionality does this provide?
 
-If a link from some package’s README file has brought you here, it means that package uses `atom-languageclient` as a dependency. This library knows how to communicate to language servers (“brains” that know how to analyze code in ways that are useful to code editors) and deliver those smarts to Pulsar in the ways that Pulsar expects.
+This isn’t a Pulsar package itself; it’s a library meant to be used by Pulsar packages. It knows how to talk to a language server and to hook up its features to Pulsar’s UI.
 
-In Pulsar, there is often a division between “consumer” packages and “provider” packages. For instance, the built-in `autocomplete-plus` package knows how to show users an autocomplete menu, but doesn’t know _what_ to suggest while you type. It relies on other packages to act as data sources and feed it suggestion information on the fly.
+For instance:
 
-The contracts between “provider” packages and “consumer” packages are called _services_. The services used by built-in packages (and by popular community packages) are _de facto_ standards. `atom-languageclient` makes it so that one language server “brain” can act as a provider for a large handful of these services at once.
+* It knows how to supply autocompletion suggestions to Pulsar’s `autocomplete-plus` package
+* It knows how to ask the language server where something is defined (a function, a class, whatever) so it can jump to the declaration of the symbol under the cursor (as implemented by the `symbols-view` package)
+* It knows how to ask a language server to reformat the selected code
+* It knows how to ask a language server for diagnostic messages and report them to the `linter` package
+
+Many Pulsar features are implemented by packages that know how to do the UI for the feature but rely on a different package to provide the “brains” behind it. They define contracts called “services” that other packages can use to supply data to them.
+
+Language servers are designed to be those brains, and `atom-languageclient` hooks them up to the services that can take advantage of them.
 
 Capabilities vary; some language servers support lots of tasks, and others support only a few. But here are some things that a language server can do, and the parts of Pulsar that this package talks to to make them happen:
 
@@ -22,7 +29,7 @@ Capabilities vary; some language servers support lots of tasks, and others suppo
   * View and filter a list of symbols in the current file (function names, class names, etc.)
   * View and filter a list of symbols across all files in the project
   * Jump to the definition of the symbol under the cursor
-* [linter](https://web.pulsar-edit.dev/packages/linter) and [linter-ui-default](https://web.pulsar-edit.dev/packages/linter-ui-default)
+* [linter][] and [linter-ui-default][]
   * View diagnostic messages as you type (syntax errors, stylistic suggestions, etc.)
 * [intentions](https://web.pulsar-edit.dev/packages/intentions)
   * Open a menu to view possible code actions for a diagnostic message
@@ -34,6 +41,10 @@ Capabilities vary; some language servers support lots of tasks, and others suppo
 * [pulsar-find-references](https://web.pulsar-edit.dev/packages/pulsar-find-references)
   * Place the cursor inside of a token to highlight other usages of that token
   * Place the cursor inside of a token, then view a `find-and-replace`-style “results” panel containing all usages of that token across your project
+* [pulsar-code-format](https://web.pulsar-edit.dev/packages/pulsar-code-format)
+* [pulsar-hover](https://web.pulsar-edit.dev/packages/pulsar-hover)
+  * Hover over a symbol to see any related documentation, including method signatures
+  * View a function’s parameter signature as you type its arguments
 * [atom-ide-definitions](https://web.pulsar-edit.dev/packages/atom-ide-definitions)
   * Jump to the definition of the symbol under the cursor
 * [atom-ide-datatip](https://web.pulsar-edit.dev/packages/atom-ide-datatip)
@@ -52,12 +63,16 @@ Here are a few of the notable features added in this fork:
 * Symbol search within files and across projects, plus “Go to Reference” support, via the builtin [symbols-view](https://web.pulsar-edit.dev/packages/symbols-view) package
   * Ability to customize/ignore symbols before they’re shown to the user
 * Deeper integration with `linter`:
-  * Possible solutions for linting issues appear in an intentions menu
+  * Possible solutions for linting issues appear in an `intentions` menu
   * Ability to customize/ignore diagnostic messages before they’re shown to the user
 * Using the `intentions` package for code actions:
   * Ability to invoke the `intentions:show` command anywhere in the buffer and receive code action suggestions
 * Removed dependency on the `zadeh` library in favor of Pulsar’s built-in fuzzy-matcher (`zadeh` doesn’t have an Apple Silicon pre-build, so this was causing headaches for some users)
   * If the built-in fuzzy-matcher somehow isn’t present, we fall back to `fuzzaldrin` (written in pure JS)
+* Ability to use `busy-signal` to report the status of server-initiated tasks
+* Ability for consuming packages to filter server-sent messaages (via `window/showMessage`) before they’re shown to the user
+* New, easier-to-use services — `hover` and `signature` — for hover information and signature help
+* SOON: Ability to react to user-initiated file operations — new files, moved files, deleted files — via the tree view
 
 More features are planned.
 
@@ -67,49 +82,49 @@ More features are planned.
 
 ## Implementation
 
-This npm package can be used by Atom package authors wanting to integrate LSP-compatible language servers with Atom. It provides:
+This is not a Pulsar package; it’s an NPM package meant to be used as a dependency of a Pulsar package. It can be used by Pulsar package authors wanting to integrate LSP-compatible language servers with Pulsar. It provides:
 
-- Conversion routines between Atom and LSP types
+- Conversion routines between Pulsar and LSP types
 - A TypeScript wrapper around JSON-RPC for **v3** of the LSP protocol
 - All necessary TypeScript input and return structures for LSP, notifications etc.
-- A number of adapters to translate communication between Atom/Atom-IDE and the LSP's capabilities
+- A number of adapters to translate communication between Pulsar and the LSP's capabilities
 - Automatic wiring up of adapters based on the negotiated capabilities of the language server
-- Helper functions for downloading additional non-npm dependencies
+- Helper functions for downloading additional non-NPM dependencies
 
 ## Capabilities
 
 The language server protocol consists of a number of capabilities. Some of these already have a counterpoint we can connect up to today while others do not. The following table shows each capability in v2 and how it is exposed via Pulsar:
 
-| Capability                        | Atom interface                                              |
-| --------------------------------- | ------------------------------------------------------------|
-| window/showMessage                | `notifications` (builtin)                                   |
-| window/showMessageRequest         | `notifications` (builtin)                                   |
-| window/logMessage                 | TBD                                                         |
-| telemetry/event                   | Ignored                                                     |
-| workspace/didChangeWatchedFiles   | Pulsar core                                                 |
-| textDocument/publishDiagnostics   | `linter` v2 push/indie                                      |
-| textDocument/completion           | `autocomplete-plus` (builtin)                               |
-| completionItem/resolve            | `autocomplete-plus` (builtin)                               |
-| textDocument/hover                | `atom-ide-datatip`                                          |
-| textDocument/signatureHelp        | `atom-ide-signature-help`                                   |
-| textDocument/definition           | `atom-ide-definitions` / `symbols-view`                     |
-| textDocument/findReferences       | `pulsar-find-references`                                    |
-| textDocument/documentHighlight    | TBD                                                         |
-| textDocument/documentSymbol       | `symbols-view` / `atom-ide-outline` / `pulsar-outline-view` |
-| workspace/symbol                  | `symbols-view`                                              |
-| textDocument/codeAction           | `intentions`                                                |
-| textDocument/codeLens             | TBD                                                         |
-| textDocument/formatting           | `atom-ide-code-format`                                      |
-| textDocument/rangeFormatting      | `atom-ide-code-format`                                      |
-| textDocument/onTypeFormatting     | TBD                                                         |
-| textDocument/onSaveFormatting     | TBD                                                         |
-| textDocument/prepareCallHierarchy | TBD                                                         |
-| textDocument/rename               | `pulsar-refactor`                                           |
-| textDocument/didChange            | Pulsar core                                                 |
-| textDocument/didOpen              | Pulsar core                                                 |
-| textDocument/didSave              | Pulsar core                                                 |
-| textDocument/willSave             | Pulsar core                                                 |
-| textDocument/didClose             | Pulsar core                                                 |
+| Capability                        | Atom interface                              |
+| --------------------------------- | --------------------------------------------|
+| window/showMessage                | `notifications` (builtin)                   |
+| window/showMessageRequest         | `notifications` (builtin)                   |
+| window/logMessage                 | Developer tools console                     |
+| telemetry/event                   | Ignored                                     |
+| workspace/didChangeWatchedFiles   | Pulsar core                                 |
+| textDocument/publishDiagnostics   | `linter` v2 push/indie                      |
+| textDocument/completion           | `autocomplete-plus` (builtin)               |
+| completionItem/resolve            | `autocomplete-plus` (builtin)               |
+| textDocument/hover                | `pulsar-hover`/`atom-ide-datatip`           |
+| textDocument/signatureHelp        | `pulsar-hover`/`atom-ide-signature-help`    |
+| textDocument/definition           | `symbols-view`/`atom-ide-definitions`       |
+| textDocument/findReferences       | `pulsar-find-references`                    |
+| textDocument/documentHighlight    | TBD                                         |
+| textDocument/documentSymbol       | `symbols-view`/`pulsar-outline-view`        |
+| workspace/symbol                  | `symbols-view` (builtin)                    |
+| textDocument/codeAction           | `intentions`                                |
+| textDocument/codeLens             | TBD                                         |
+| textDocument/formatting           | `pulsar-code-format`/`atom-ide-code-format` |
+| textDocument/rangeFormatting      | `pulsar-code-format`/`atom-ide-code-format` |
+| textDocument/onTypeFormatting     | TBD                                         |
+| textDocument/onSaveFormatting     | TBD                                         |
+| textDocument/prepareCallHierarchy | TBD                                         |
+| textDocument/rename               | `pulsar-refactor`                           |
+| textDocument/didChange            | Pulsar core                                 |
+| textDocument/didOpen              | Pulsar core                                 |
+| textDocument/didSave              | Pulsar core                                 |
+| textDocument/willSave             | Pulsar core                                 |
+| textDocument/didClose             | Pulsar core                                 |
 
 _(`atom-ide-ui` references removed, since it is currently incompatible with Pulsar)_
 
@@ -134,9 +149,13 @@ class CSharpLanguageClient extends AutoLanguageClient {
   getServerName() {
     return "OmniSharp"
   }
-
+  getPackageName() {
+    return "ide-csharp"
+  }
   startServerProcess() {
-    return super.spawnChildNode([require.resolve("omnisharp-client/languageserver/server")])
+    return super.spawnChildNode([
+      require.resolve("omnisharp-client/languageserver/server")
+    ])
   }
 }
 
@@ -164,7 +183,9 @@ class DLanguageClient extends AutoLanguageClient {
   getServerName() {
     return "serve-d"
   }
-
+  getPackageName() {
+    return "ide-d"
+  }
   startServerProcess(projectPath) {
     return super.spawn(
       "serve-d", // the `name` or `path` of the executable
@@ -197,11 +218,12 @@ class ExampleLanguageClient extends AutoLanguageClient {
   getServerName() {
     return "JavaScript Language Server"
   }
-
+  getPackageName() {
+    return "ide-javascript"
+  }
   getConnectionType() {
     return "ipc"
   }
-
   startServerProcess() {
     const startServer = require.resolve("@example/js-language-server")
     return super.spawnChildNode([startServer, "--node-ipc"], {
@@ -268,4 +290,7 @@ Always feel free to help out! Whether it's [filing bugs and feature requests](ht
 
 ## License
 
-MIT License. See [the license](LICENSE.md) for more details.
+MIT License. See [the license](/LICENSE.md) for more details.
+
+[linter]: https://web.pulsar-edit.dev/packages/linter
+[linter-ui-default]: https://web.pulsar-edit.dev/packages/linter-ui-default

@@ -1611,6 +1611,11 @@ export default class AutoLanguageClient {
     return RenameAdapter.getPrepareRename(server.connection, editor, position)
   }
 
+  // Signature Help via LS textDocument/signatureHelp -------------------------
+
+
+  // SERVICE: signature-help (Atom IDE)
+
   /**
    * The priority value to use for signature help providers. Override this
    * method to customize the priority.
@@ -1631,6 +1636,96 @@ export default class AutoLanguageClient {
       this._signatureHelpRegistry = undefined
     })
   }
+
+  // SERVICE: signature (simpler alternative)
+
+  /**
+   * Provide the `signature` service.
+   *
+   * This method is purposefully async; the consumer receives a `Promise` that
+   * will resolve to either a traditional provider-style object or `null`.
+   */
+  public async provideSignature(): Promise<SignatureProvider | null> {
+    // This is tricky because the service wants to know some information up
+    // front that we cannot provide until we talk to the server:
+    // `triggerCharacters` and `retriggerCharacters`. This information is
+    // contained in the server's capabilites object and is not something we
+    // want to retrieve dynamically if it can be avoided.
+    //
+    // Atom IDE “solved” this problem with the `signature-help` service by
+    // inverting the provider/consumer relationship: the provider pretended to
+    // be the consumer, and vice-versa, so that the provider could imperatively
+    // provide itself to the consumer when it was ready to.
+    //
+    // In situations with multiple project roots, this could get confusing,
+    // because it results in several different “consumers” adding themselves to
+    // their “provider.” And `atom-ide-signature-help` never understood this —
+    // it simply picked the provider with the highest priority. There was no
+    // mechanism in the service contract to allow it to pick the correct
+    // provider for an editor's path.
+    //
+    // We'd like to solve this another way that isn't quite so disorienting, so
+    // our `signature` service works as follows:
+    //
+    // * The provider gives a promise that will resolve to a
+    //   `SignatureProvider` (or `null`). The consumer awaits the promise, then
+    //   decides what to do with it.
+    // * This allows us to resolve as soon as we have a single server instance
+    //   and can inspect its capabilities to discover `triggerCharacters` and
+    //   `retriggerCharacters`.
+    // * We make the opinionated (but well-founded) decision to treat those
+    //   initial capabilities as authoritative for any future servers as well,
+    //   at least as far as signature help trigger characters are concerned.
+    //   It is _highly_ unlikely for such data to vary based on the root folder
+    //   of a language server instance.
+    // * The bulk of the work is done in the `getSignature` function — and,
+    //   crucially, that function will find the correct server instance for its
+    //   path, then use the correct `SignatureAdapter` to look up its signature
+    //   help.
+    let signatureAdapter = await this.waitForFirstSignatureAdapter()
+    if (!signatureAdapter) return null
+
+    return {
+      name: this.name,
+      packageName: this.getPackageName(),
+      priority: this.getPriorityForSignatureHelp(),
+      grammarScopes: this.getGrammarScopes(),
+      triggerCharacters: signatureAdapter.triggerCharacters,
+      retriggerCharacters: signatureAdapter.retriggerCharacters,
+      getSignature: this.getSignature.bind(this)
+    }
+  }
+
+  protected async getSignature(
+    editor: TextEditor,
+    point: Point,
+    context?: SignatureHelpContext
+  ): Promise<SignatureHelp | null> {
+    let server = await this._serverManager.getServer(editor)
+    if (!server) return null
+
+    let adapter = this.getServerAdapter(server, 'signatureAdapter')
+    if (!adapter) return null
+
+    return adapter.getSignature(editor, point, context)
+  }
+
+  async waitForFirstSignatureAdapter(): Promise<SignatureAdapter | null> {
+    // We might have one already…
+    for (let server of this._serverManager.getActiveServers()) {
+      let signatureAdapter = this.getServerAdapter(server, 'signatureAdapter')
+      if (signatureAdapter != null) {
+        return Promise.resolve(signatureAdapter)
+      }
+    }
+    // …but if not, we'll wait for one for five seconds.
+    try {
+      return await SignatureAdapter.waitForFirst()
+    } catch (err) {
+      return null
+    }
+  }
+
 
   public consumeBusySignal(service: atomIde.BusySignalService): Disposable {
     this.busySignalService = service
