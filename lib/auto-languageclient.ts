@@ -25,7 +25,7 @@ import LoggingConsoleAdapter from "./adapters/logging-console-adapter"
 import NotificationsAdapter from "./adapters/notifications-adapter"
 import OutlineViewAdapter from "./adapters/outline-view-adapter"
 import RenameAdapter from "./adapters/rename-adapter"
-import SignatureHelpAdapter from "./adapters/signature-help-adapter"
+import SignatureHelpAdapter, { SignatureAdapter, SignatureProvider } from "./adapters/signature-help-adapter"
 import SymbolAdapter from "./adapters/symbol-adapter"
 import WorkDoneProgressAdapter from "./adapters/work-done-progress-adapter"
 import * as sa from "./adapters/symbol-adapter"
@@ -33,16 +33,18 @@ import * as ShowDocumentAdapter from "./adapters/show-document-adapter"
 import * as Utils from "./utils"
 import { Socket } from "net"
 import {
+  CodeActionKind,
   Diagnostic,
   ExecuteCommandParams,
-  LanguageClientConnection,
-  SymbolKind,
-  ShowMessageRequestParams,
-  ResourceOperationKind,
   FailureHandlingKind,
+  LanguageClientConnection,
   MarkupKind,
-  CodeActionKind,
-  PrepareSupportDefaultBehavior
+  PrepareSupportDefaultBehavior,
+  ResourceOperationKind,
+  ShowMessageRequestParams,
+  SignatureHelp,
+  SignatureHelpContext,
+  SymbolKind
 } from "./languageclient"
 import { ConsoleLogger, FilteredLogger, Logger } from "./logger"
 import {
@@ -71,6 +73,7 @@ export type ConnectionType = "stdio" | "socket" | "ipc"
 export interface ServerAdapters {
   linterPushV2: LinterPushV2Adapter
   loggingConsole: LoggingConsoleAdapter
+  signatureAdapter?: SignatureAdapter,
   signatureHelpAdapter?: SignatureHelpAdapter
 }
 
@@ -123,7 +126,9 @@ export default class AutoLanguageClient {
   protected outlineView?: OutlineViewAdapter
   protected symbolProvider?: SymbolAdapter
 
-  // You must implement these so we know how to deal with your language and server
+  // -------------------------------------------------------------------------
+  // You must implement these so we know how to deal with your language and
+  // server.
   // -------------------------------------------------------------------------
 
   /** Return an array of the grammar scopes you handle, e.g. [ 'source.js' ] */
@@ -169,7 +174,9 @@ export default class AutoLanguageClient {
       locale: atom.config.get("atom-i18n.locale") || "en",
       workspaceFolders: [{ uri: rootUri, name: basename(projectPath) }],
       // The capabilities supported.
-      // TODO the capabilities set to false/undefined are TODO. See {ls.ServerCapabilities} for a full list.
+      //
+      // TODO the capabilities set to false/undefined are TODO. See
+      // {ls.ServerCapabilities} for a full list.
       capabilities: {
         workspace: {
           applyEdit: true,
@@ -177,9 +184,7 @@ export default class AutoLanguageClient {
           workspaceEdit: {
             documentChanges: true,
             normalizesLineEndings: false,
-            // TODO: Ensure this is truly transactional, including all file
-            // operations; otherwise this needs to be `TextOnlyTransactional`.
-            failureHandling: FailureHandlingKind.Transactional,
+            failureHandling: FailureHandlingKind.TextOnlyTransactional,
             changeAnnotationSupport: undefined,
             resourceOperations: [
               ResourceOperationKind.Create,
@@ -273,7 +278,7 @@ export default class AutoLanguageClient {
               },
               activeParameterSupport: false,
             },
-            contextSupport: false
+            contextSupport: true
           },
           declaration: {
             dynamicRegistration: false,
@@ -944,10 +949,17 @@ export default class AutoLanguageClient {
       server.disposable.add(signatureHelpAdapter)
     }
 
+    let signatureAdapter: SignatureAdapter | undefined
+    if (SignatureAdapter.canAdapt(server.capabilities)) {
+      signatureAdapter = new SignatureAdapter(server)
+      server.disposable.add(signatureAdapter)
+    }
+
     this._serverAdapters.set(server, {
       linterPushV2,
       loggingConsole,
       signatureHelpAdapter,
+      signatureAdapter
     })
 
     ShowDocumentAdapter.attach(server.connection)
