@@ -12,6 +12,8 @@ import {
 import { TextEditor, Range, Point } from "atom"
 import DocumentSyncAdapter from "./document-sync-adapter"
 
+export type CodeFormatType = 'range' | 'file' | 'onType' | 'onSave'
+
 /**
 * Public: Adapts the language server protocol "textDocument/completion" to the
 * Atom IDE UI Code-format package.
@@ -31,7 +33,7 @@ export default class CodeFormatAdapter {
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
     return (
       Boolean(serverCapabilities.documentRangeFormattingProvider) ||
-        Boolean(serverCapabilities.documentFormattingProvider)
+      Boolean(serverCapabilities.documentFormattingProvider)
     )
   }
 
