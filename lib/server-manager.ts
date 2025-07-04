@@ -31,7 +31,7 @@ export interface ActiveServer {
 
 interface RestartCounter {
   restarts: number
-  timerId: NodeJS.Timer
+  timerId: NodeJS.Timeout
 }
 
 /** Manages the language server lifecycles and their associated objects necessary for adapting them to Atom IDE. */
@@ -143,9 +143,11 @@ export class ServerManager {
     if (startingPromise) {
       return startingPromise
     }
-    // TODO remove eslint-disable
-    // eslint-disable-next-line no-return-await
-    return shouldStart && this._startForEditor(textEditor) ? await this.startServer(finalProjectPath) : null
+    if (shouldStart && this._startForEditor(textEditor)) {
+      return await this.startServer(finalProjectPath)
+    } else {
+      return null
+    }
   }
 
   public async startServer(projectPath: string): Promise<ActiveServer> {

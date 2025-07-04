@@ -253,7 +253,7 @@ export default class AutoLanguageClient {
               tagSupport: {
                 valueSet: [],
               },
-              insertReplaceSupport: false,
+              insertReplaceSupport: true,
               resolveSupport: {
                 properties: [],
               },
@@ -634,6 +634,7 @@ export default class AutoLanguageClient {
 
     const connection = new LanguageClientConnection(
       this.createRpcConnection(lsProcess), this.logger)
+
     this.preInitialization(connection)
 
     const initializeParams = this.getInitializeParams(projectPath, lsProcess)
@@ -997,6 +998,27 @@ export default class AutoLanguageClient {
     return []
   }
 
+  /**
+   * Returns the `inclusionPriority` that should be reported by the service object.
+   *
+   * Override if you want to make the inclusion priority configurable by the
+   * user.
+   */
+  protected getInclusionPriorityForAutocomplete(): number {
+    return 1
+  }
+
+  /**
+   * Returns the `suggestionPriority` that should be reported by the service
+   * object.
+   *
+   * Override if you want to make the suggestion priority configurable by the
+   * user.
+   */
+  protected getSuggestionPriorityForAutocomplete(): number {
+    return 2
+  }
+
   public provideAutocomplete(): ac.AutocompleteProvider {
     return {
       selector: this.getGrammarScopes()
@@ -1005,8 +1027,8 @@ export default class AutoLanguageClient {
       disableForSelector: this.getAutocompleteDisabledScopes()
         .map((g) => grammarScopeToAutoCompleteSelector(g))
         .join(", "),
-      inclusionPriority: 1,
-      suggestionPriority: 2,
+      inclusionPriority: this.getInclusionPriorityForAutocomplete(),
+      suggestionPriority: this.getSuggestionPriorityForAutocomplete(),
       excludeLowerPriority: false,
       filterSuggestions: true,
       getSuggestions: this.getSuggestions.bind(this),
@@ -1014,7 +1036,7 @@ export default class AutoLanguageClient {
         AutocompleteAdapter.applyAdditionalTextEdits(event)
         this.onDidInsertSuggestion(event)
       },
-      getSuggestionDetailsOnSelect: this.getSuggestionDetailsOnSelect.bind(this),
+      getSuggestionDetailsOnSelect: this.getSuggestionDetailsOnSelect.bind(this)
     }
   }
 
@@ -1047,12 +1069,29 @@ export default class AutoLanguageClient {
     return this.autoComplete.completeSuggestion(server, suggestion, request, this.onDidConvertAutocomplete)
   }
 
+  /**
+   * Invoked when a {@link ls.CompletionItem} is converted into a {@link
+   * ac.AnySuggestion} (translating LSP types to `autocomplete-plus` types).
+   *
+   * You may use this as an opportunity to customize the suggestion further or
+   * change some of its metadata.
+   *
+   * @returns Nothing; you should modify the suggestion through direct
+   *   mutation.
+   */
   protected onDidConvertAutocomplete(
     _completionItem: ls.CompletionItem,
     _suggestion: ac.AnySuggestion,
     _request: ac.SuggestionsRequestedEvent
   ): void { }
 
+  /**
+   * Invoked when a suggestion is inserted into the document after being chosen
+   * by the user.
+   *
+   * You may use this method as an opportunity to perform any further action at
+   * the time of suggestion insertion.
+   */
   protected onDidInsertSuggestion(_arg: ac.SuggestionInsertedEvent): void { }
 
   // Definitions via LS documentHighlight and gotoDefinition------------
@@ -1095,12 +1134,23 @@ export default class AutoLanguageClient {
 
   // Outline View via LS documentSymbol---------------------------------
 
+  /**
+   * Returns the priority that shoud be reported by the
+   * {@link atomIde.OutlineProvider}.
+   *
+   * A package could override this value if its author wanted to make
+   * the outline provider priority configurable by the user.
+   */
+  getPriorityForOutline(): number {
+    return 1
+  }
+
   public provideOutlines(): atomIde.OutlineProvider {
     return {
       name: this.name,
       grammarScopes: this.getGrammarScopes(),
-      priority: 1,
-      getOutline: this.getOutline.bind(this),
+      priority: this.getPriorityForOutline(),
+      getOutline: this.getOutline.bind(this)
     }
   }
 
@@ -1157,7 +1207,7 @@ export default class AutoLanguageClient {
    * @returns A boolean indicating whether a symbol should be shown in a list
    *   of symbols.
    */
-  shouldIgnoreSymbol(_symbol: symbol.SymbolEntry, _editor: TextEditor, _meta: symbol.SymbolMeta): boolean {
+  protected shouldIgnoreSymbol(_symbol: symbol.SymbolEntry, _editor: TextEditor, _meta: symbol.SymbolMeta): boolean {
     return false
   }
 
@@ -1174,7 +1224,7 @@ export default class AutoLanguageClient {
    * @returns Whether the language server should try to provide symbols for a
    *   given request.
    */
-  canProvideSymbols(_meta: sa.SymbolMeta) {
+  protected canProvideSymbols(_meta: sa.SymbolMeta) {
     return true
   }
 
@@ -1186,7 +1236,7 @@ export default class AutoLanguageClient {
    * @returns A number representing minimum query length before asking the
    *   language server to suggest project-wide symbols.
    */
-  minimumQueryLengthForSymbolSearch(_meta: sa.SymbolMeta) {
+  protected minimumQueryLengthForSymbolSearch(_meta: sa.SymbolMeta) {
     return 3
   }
 
@@ -1332,7 +1382,7 @@ export default class AutoLanguageClient {
     this._disposable.add(
       service.addProvider({
         providerName: this.name,
-        priority: 1,
+        priority: this.getPriorityForHover(),
         grammarScopes: this.getGrammarScopes(),
         validForScope: (scopeName: string) => {
           return this.getGrammarScopes().includes(scopeName)
@@ -1575,23 +1625,35 @@ export default class AutoLanguageClient {
     )
   }
 
-  /** Optionally filter code action before they're displayed */
+  /** Optionally filter code action before they're displayed. */
   public filterCodeActions(actions: (ls.Command | ls.CodeAction)[] | null): (ls.Command | ls.CodeAction)[] | null {
     return actions
   }
 
   /**
    * Optionally handle a code action before default handling. Return `false` to
-   * prevent default handling, `true` to continue with default handling.
+   * prevent default handling, or `true` to continue with default handling.
    */
   protected onApplyCodeActions(_action: ls.Command | ls.CodeAction): Promise<boolean> {
     return Promise.resolve(true)
   }
 
+  /**
+   * Override this method to return a custom priority for the `refactor`
+   * service.
+   *
+   * For instance, you may choose to make refactor provider priority
+   * configurable by the user so they can more easily choose a winner in cases
+   * of conflict.
+   */
+  protected getPriorityForRefactor() {
+    return 1
+  }
+
   public provideRefactor(): atomIde.RefactorProvider {
     return {
       grammarScopes: this.getGrammarScopes(),
-      priority: 1,
+      priority: this.getPriorityForRefactor(),
       rename: this.getRename.bind(this)
     }
   }
@@ -1599,7 +1661,7 @@ export default class AutoLanguageClient {
   public provideRefactorWithPrepare(): refactor.EnhancedRefactorProvider {
     return {
       grammarScopes: this.getGrammarScopes(),
-      priority: 1,
+      priority: this.getPriorityForRefactor(),
       rename: this.getRename.bind(this),
       prepareRename: this.getPrepareRename.bind(this)
     }
@@ -1618,6 +1680,11 @@ export default class AutoLanguageClient {
     return RenameAdapter.getRename(server.connection, editor, position, newName)
   }
 
+  /**
+   * Ask the language server to prepare for a rename. May tell us the
+   * {@link Range} that could validly be renamed at the given cursor position,
+   * or else whether it's valid to rename anything at that cursor position.
+   */
   protected async getPrepareRename(
     editor: TextEditor,
     position: Point

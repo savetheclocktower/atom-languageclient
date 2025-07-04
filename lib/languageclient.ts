@@ -148,7 +148,10 @@ export class LanguageClientConnection extends EventEmitter {
    * @param params The method's parameters
    */
   public sendCustomNotification(method: string, params?: any[] | object): void {
-    this._sendNotification(new lsp.ProtocolNotificationType<typeof params, any>(method), params)
+    this._sendNotification(
+			new lsp.ProtocolNotificationType<typeof params, any>(method),
+			params
+		)
   }
 
   /**

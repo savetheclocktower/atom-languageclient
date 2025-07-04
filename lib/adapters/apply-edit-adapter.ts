@@ -229,10 +229,10 @@ export default class ApplyEditAdapter {
   private static async handleResourceOperation(edit: CreateFile | RenameFile | DeleteFile): Promise<void> {
     if (DeleteFile.is(edit)) {
       const path = Convert.uriToPath(edit.uri)
-      const stats: boolean | Stats = await fsp.lstat(path).catch(() => false)
+      const stats: false | Stats = await fsp.lstat(path).catch(() => false)
       const ignoreIfNotExists = edit.options?.ignoreIfNotExists
 
-      if (!stats) {
+      if (stats === false) {
         if (ignoreIfNotExists !== false) {
           return
         }
