@@ -115,8 +115,9 @@ export default class AutocompleteAdapter {
         ? server.capabilities.completionProvider.triggerCharacters || []
         : []
 
-    // triggerOnly is true if we have just typed in a trigger character, and is false if we
-    // have typed additional characters following a trigger character.
+    // `triggerOnly` is `true` if we have just typed in a trigger character,
+    // and is `false` if we have typed additional characters following a
+    // trigger character.
     const [triggerChar, triggerOnly] = AutocompleteAdapter.getTriggerCharacter(request, triggerChars)
 
     if (!this.shouldTrigger(request, triggerChar, minimumWordLength || 0)) {
@@ -133,7 +134,8 @@ export default class AutocompleteAdapter {
       onDidConvertCompletionItem
     )
 
-    // We must update the replacement prefix as characters are added and removed
+    // We must update the replacement prefix as characters are added and
+    // removed.
     const cache = this._suggestionCache.get(server)!
     const replacementPrefix = request.editor.getTextInBufferRange([
       [cache.triggerPoint.row, cache.triggerPoint.column + cache.triggerChar.length],
@@ -141,13 +143,13 @@ export default class AutocompleteAdapter {
     ])
     for (const suggestion of suggestions) {
       if (suggestion.customReplacementPrefix) {
-        // having this property means a custom range was provided
+        // Having this property means a custom range was provided.
         const len = replacementPrefix.length
         const preReplacementPrefix =
           suggestion.customReplacementPrefix +
           replacementPrefix.substring(len + cache.originalBufferPoint.column - request.bufferPosition.column, len)
-        // we cannot replace text after the cursor with the current autocomplete-plus API
-        // so we will simply ignore it for now
+        // We cannot replace text after the cursor with the current
+        // autocomplete-plus API, so we will simply ignore it for now.
         suggestion.replacementPrefix = preReplacementPrefix
       } else {
         suggestion.replacementPrefix = replacementPrefix
@@ -520,10 +522,28 @@ export default class AutocompleteAdapter {
    */
   public static applyCompletionItemToSuggestion(item: CompletionItem, suggestion: TextSuggestion): void {
     suggestion.text = item.insertText || item.label
-    suggestion.filterText = item.label //item.filterText ||
+    suggestion.filterText = item.label // item.filterText || item.label
     suggestion.displayText = item.label
     suggestion.type = AutocompleteAdapter.completionKindToSuggestionType(item.kind)
     AutocompleteAdapter.applyDetailsToSuggestion(item, suggestion)
+
+    // We can add some properties that are more precise and conform better to
+    // LSP conventions. This is extra data, so it will be used if it's present;
+    // if not, it will gracefully degrade to older versions of the
+    // `autocomplete.provider` contract.
+
+    // Version 5.1.0 of `autocomplete.provider` added the ability to apply an
+    // arbitrary `TextEdit` instead of throwing a bunch of heuristics at it.
+    if (item.textEdit && TextEdit.is(item.textEdit)) {
+      suggestion.textEdit = Convert.convertLsTextEdit(item.textEdit)
+    }
+
+    // Version 5.1.0 of `autocomplete.provider` also added the ability to apply
+    // additional `TextEdit`s upon suggestion insertion.
+    if (item.additionalTextEdits) {
+      suggestion.additionalTextEdits = Convert.convertLsTextEdits(item.additionalTextEdits)
+    }
+
     suggestion.completionItem = item
   }
 
@@ -548,8 +568,8 @@ export default class AutocompleteAdapter {
 
   /**
    * Public: Applies the textEdit part of a language server protocol
-   * CompletionItem to an AutoComplete+ Suggestion via the replacementPrefix
-   * and text properties.
+   * {@link CompletionItem} to an autocomplete-plus {@link Suggestion} via the
+   * `replacementPrefix` and `text` properties.
    *
    * @param textEdit A {@link TextEdit} from a CompletionItem to apply.
    * @param editor An Atom {@link TextEditor} used to obtain the necessary
@@ -568,9 +588,8 @@ export default class AutocompleteAdapter {
     suggestion: TextSuggestion,
     shouldReplace: ShouldReplace
   ): void {
-    if (!textEdit) {
-      return
-    }
+    if (!textEdit) return
+
     let range: Range
     if ("range" in textEdit) {
       range = textEdit.range
@@ -580,10 +599,8 @@ export default class AutocompleteAdapter {
       range = textEdit.insert
     }
 
-    if (range.start.character !== triggerColumns[0]) {
-      const atomRange = Convert.lsRangeToAtomRange(range)
-      suggestion.customReplacementPrefix = editor.getTextInBufferRange([atomRange.start, originalBufferPosition])
-    }
+    const atomRange = Convert.lsRangeToAtomRange(range)
+    suggestion.customReplacementPrefix = editor.getTextInBufferRange([atomRange.start, originalBufferPosition])
 
     // TODO: Needed to fix TypeScript completions. This line seems flat-out
     // wrong in all contexts, but maybe it's failing only for TypeScript's
