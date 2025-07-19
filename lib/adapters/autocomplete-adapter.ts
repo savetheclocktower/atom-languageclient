@@ -105,11 +105,11 @@ export default class AutocompleteAdapter {
   public async getSuggestions(
     server: ActiveServer,
     request: ac.SuggestionsRequestedEvent,
+    apiVersion: number,
     onDidConvertCompletionItem?: CompletionItemAdjuster,
     minimumWordLength?: number,
     shouldReplace: ShouldReplace = false
   ): Promise<ac.AnySuggestion[]> {
-    this.logger.log(`getSuggestions:`, request)
     const triggerChars =
       server.capabilities.completionProvider != null
         ? server.capabilities.completionProvider.triggerCharacters || []
@@ -130,6 +130,7 @@ export default class AutocompleteAdapter {
       request,
       triggerChar,
       triggerOnly,
+      apiVersion,
       shouldReplace,
       onDidConvertCompletionItem
     )
@@ -158,10 +159,11 @@ export default class AutocompleteAdapter {
 
     const filtered = !(request.prefix === "" || (triggerChar !== "" && triggerOnly))
     if (filtered) {
-      // filter the suggestions who have `filterText` property
+      // Filter the suggestions that have a `filterText` property.
       const validSuggestions = suggestions.filter((sgs) => (
         typeof sgs.filterText === "string"
       )) as Suggestion[] & { filterText: string }[]
+
       // TODO use `ObjectArrayFilterer.setCandidate` in `_suggestionCache` to
       // avoid creating `ObjectArrayFilterer` every time from scratch.
       const objFilterer = new ObjectArrayFilterer(validSuggestions, "filterText")
@@ -183,6 +185,7 @@ export default class AutocompleteAdapter {
     request: ac.SuggestionsRequestedEvent,
     triggerChar: string,
     triggerOnly: boolean,
+    apiVersion: number,
     shouldReplace: ShouldReplace,
     onDidConvertCompletionItem?: CompletionItemAdjuster
   ): Promise<Suggestion[]> {
@@ -222,7 +225,7 @@ export default class AutocompleteAdapter {
 
     // Our cached suggestions can't be used, so we'll obtain new ones from the
     // language server.
-    this.logger.log('getting completions!')
+    this.logger.log('Getting completions…')
     let completions = await Utils.doWithCancellationToken(
       server.connection,
       this._cancellationTokens,
@@ -243,6 +246,7 @@ export default class AutocompleteAdapter {
     const suggestionMap = this.completionItemsToSuggestions(
       completions,
       request,
+      apiVersion,
       triggerColumns,
       shouldReplace,
       onDidConvertCompletionItem
@@ -429,6 +433,8 @@ export default class AutocompleteAdapter {
    * @param completionItems An array of {@link CompletionItem} objects or a
    *   {@link CompletionList} containing completion items to be converted.
    * @param request The {@link atom$AutocompleteRequest} to satisfy.
+   * @param apiVersion The version of the `autocomplete.provider` service we're
+   *   using.
    * @param shouldReplace The behavior of suggestion acceptance (see
    *   {@link ShouldReplace}).
    * @param onDidConvertCompletionItem A function that takes a
@@ -441,6 +447,7 @@ export default class AutocompleteAdapter {
   public completionItemsToSuggestions(
     completionItems: CompletionItem[] | CompletionList | null,
     request: ac.SuggestionsRequestedEvent,
+    apiVersion: number,
     triggerColumns: [number, number],
     shouldReplace: ShouldReplace,
     onDidConvertCompletionItem?: CompletionItemAdjuster
@@ -456,6 +463,7 @@ export default class AutocompleteAdapter {
             s,
             {} as Suggestion,
             request,
+            apiVersion,
             triggerColumns,
             shouldReplace,
             onDidConvertCompletionItem
@@ -474,6 +482,8 @@ export default class AutocompleteAdapter {
    * @param suggestion A {@link atom$AutocompleteSuggestion} to have the
    *   conversion applied to.
    * @param request The {@link atom$AutocompleteRequest} to satisfy.
+   * @param apiVersion The version of the `autocomplete.provider` service we're
+   *   using.
    * @param shouldReplace The behavior of suggestion acceptance (see
    *   {@link ShouldReplace}).
    * @param onDidConvertCompletionItem A function that takes a
@@ -487,20 +497,28 @@ export default class AutocompleteAdapter {
     item: CompletionItem,
     suggestion: Suggestion,
     request: ac.SuggestionsRequestedEvent,
+    apiVersion: number,
     triggerColumns: [number, number],
     shouldReplace: ShouldReplace,
     onDidConvertCompletionItem?: CompletionItemAdjuster
   ): Suggestion {
-    AutocompleteAdapter.applyCompletionItemToSuggestion(item, suggestion as TextSuggestion)
+    AutocompleteAdapter.applyCompletionItemToSuggestion(item, suggestion as TextSuggestion, apiVersion, shouldReplace)
 
-    AutocompleteAdapter.applyTextEditToSuggestion(
-      item.textEdit,
-      request.editor,
-      triggerColumns,
-      request.bufferPosition,
-      suggestion as TextSuggestion,
-      shouldReplace
-    )
+    if (apiVersion < 5.1) {
+      // If we're using `autocomplete.provider` v5.1.0 or above, it should
+      // already be using the `textEdit` property to apply a suggestion. This
+      // is therefore redundant and will be unused.
+      AutocompleteAdapter.applyTextEditToSuggestion(
+        item.textEdit,
+        request.editor,
+        apiVersion,
+        triggerColumns,
+        request.bufferPosition,
+        suggestion as TextSuggestion,
+        shouldReplace
+      )
+    }
+
     AutocompleteAdapter.applySnippetToSuggestion(item, suggestion as SnippetSuggestion)
     if (onDidConvertCompletionItem != null) {
       onDidConvertCompletionItem(item, suggestion as ac.AnySuggestion, request)
@@ -520,7 +538,12 @@ export default class AutocompleteAdapter {
    * @returns The {@link Suggestion} with details added from the
    *   {@link CompletionItem}.
    */
-  public static applyCompletionItemToSuggestion(item: CompletionItem, suggestion: TextSuggestion): void {
+  public static applyCompletionItemToSuggestion(
+    item: CompletionItem,
+    suggestion: TextSuggestion,
+    apiVersion: number,
+    shouldReplace: boolean = false
+  ): void {
     suggestion.text = item.insertText || item.label
     suggestion.filterText = item.label // item.filterText || item.label
     suggestion.displayText = item.label
@@ -528,22 +551,29 @@ export default class AutocompleteAdapter {
     AutocompleteAdapter.applyDetailsToSuggestion(item, suggestion)
 
     // We can add some properties that are more precise and conform better to
-    // LSP conventions. This is extra data, so it will be used if it's present;
-    // if not, it will gracefully degrade to older versions of the
-    // `autocomplete.provider` contract.
+    // LSP conventions. We originally thought we could attach this data even
+    // under older versions of `autocomplete.provider`; but we need to know
+    // whether `autocomplete-plus` will apply additional text edits or whether
+    // we have to do it ourselves.
+    if (apiVersion >= 5.1) {
+      // Version 5.1.0 of `autocomplete.provider` added the ability to apply an
+      // arbitrary `TextEdit` instead of throwing a bunch of heuristics at it.
+      if (item.textEdit && TextEdit.is(item.textEdit)) {
+        suggestion.textEdit = Convert.convertLsTextEdit(item.textEdit)
+      } else if (item.textEdit && InsertReplaceEdit.is(item.textEdit)) {
+        suggestion.textEdit = Convert.convertLsInsertReplaceEdit(item.textEdit, shouldReplace)
+      }
 
-    // Version 5.1.0 of `autocomplete.provider` added the ability to apply an
-    // arbitrary `TextEdit` instead of throwing a bunch of heuristics at it.
-    if (item.textEdit && TextEdit.is(item.textEdit)) {
-      suggestion.textEdit = Convert.convertLsTextEdit(item.textEdit)
+      // Version 5.1.0 of `autocomplete.provider` also added the ability to apply
+      // additional `TextEdit`s upon suggestion insertion.
+      if (item.additionalTextEdits) {
+        suggestion.additionalTextEdits = Convert.convertLsTextEdits(item.additionalTextEdits)
+      }
     }
 
-    // Version 5.1.0 of `autocomplete.provider` also added the ability to apply
-    // additional `TextEdit`s upon suggestion insertion.
-    if (item.additionalTextEdits) {
-      suggestion.additionalTextEdits = Convert.convertLsTextEdits(item.additionalTextEdits)
-    }
-
+    // Attach the original completion item. This is not part of the service
+    // contract, but it's useful for debugging and for further processing of
+    // suggestions by IDE packages.
     suggestion.completionItem = item
   }
 
@@ -574,6 +604,8 @@ export default class AutocompleteAdapter {
    * @param textEdit A {@link TextEdit} from a CompletionItem to apply.
    * @param editor An Atom {@link TextEditor} used to obtain the necessary
    *   text replacement.
+   * @param _apiVersion The version of the `autocomplete.provider` service we're
+   *   using.
    * @param suggestion An {@link atom$AutocompleteSuggestion} to set the
    *   replacementPrefix and text properties of.
    *
@@ -583,7 +615,8 @@ export default class AutocompleteAdapter {
   public static applyTextEditToSuggestion(
     textEdit: TextEdit | InsertReplaceEdit | undefined,
     editor: TextEditor,
-    triggerColumns: [number, number],
+    _apiVersion: number,
+    _triggerColumns: [number, number],
     originalBufferPosition: Point,
     suggestion: TextSuggestion,
     shouldReplace: ShouldReplace
@@ -629,6 +662,15 @@ export default class AutocompleteAdapter {
 
     ApplyEditAdapter.applyEdits(event.editor, Convert.convertLsTextEdits(additionalEdits))
     buffer.groupLastChanges()
+  }
+
+  public static handlePostInsertionTasks(event: ac.SuggestionInsertedEvent, apiVersion: number) {
+    if (apiVersion < 5.1) {
+      // With version 5.1 of the `autocomplete.provider` service,
+      // `autocomplete-plus` can handle `additionalTextEdits` itself. But
+      // before that version, we must take care of it on our own.
+      this.applyAdditionalTextEdits(event)
+    }
   }
 
   /**

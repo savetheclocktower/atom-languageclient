@@ -243,4 +243,12 @@ export default class Convert {
       newText: textEdit.newText,
     }
   }
+
+  public static convertLsInsertReplaceEdit(textEdit: ls.InsertReplaceEdit, shouldReplace: boolean = false) {
+    let oldRange = shouldReplace ? textEdit.replace : textEdit.insert
+    return {
+      oldRange: Convert.lsRangeToAtomRange(oldRange),
+      newText: textEdit.newText
+    }
+  }
 }

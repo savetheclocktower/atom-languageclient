@@ -50,17 +50,19 @@ describe("AutoCompleteAdapter", () => {
   function getSuggestionsMock(
     items: CompletionItem[],
     request: getSuggestionParams[1],
-    onDidConvertCompletionItem?: getSuggestionParams[2],
-    minimumWordLength?: getSuggestionParams[3],
-    shouldReplace: getSuggestionParams[4] = false
+    apiVersion?: number,
+    onDidConvertCompletionItem?: getSuggestionParams[3],
+    minimumWordLength?: getSuggestionParams[4],
+    shouldReplace: getSuggestionParams[5] = false
   ): Promise<ac.AnySuggestion[]> {
     if (!(server.connection.completion as jasmine.Spy).and) {
       spyOn(server.connection, "completion")
     }
-    ;(server.connection.completion as jasmine.Spy).and.resolveTo(items)
+    (server.connection.completion as jasmine.Spy).and.resolveTo(items)
     const results = autoCompleteAdapter.getSuggestions(
       server,
       request,
+      apiVersion ?? 4,
       onDidConvertCompletionItem,
       minimumWordLength,
       shouldReplace
@@ -186,7 +188,7 @@ describe("AutoCompleteAdapter", () => {
 
     it("resolves suggestions via LSP given an AutoCompleteRequest", async () => {
       const autoCompleteAdapter = new AutoCompleteAdapter()
-      const results: ac.AnySuggestion[] = await autoCompleteAdapter.getSuggestions(server, request)
+      const results: ac.AnySuggestion[] = await autoCompleteAdapter.getSuggestions(server, request, 4)
       const result = results.find((r) => r.displayText === "label3")!
       expect(result).not.toBeUndefined()
       expect(result.description).toBeUndefined()
@@ -307,8 +309,8 @@ describe("AutoCompleteAdapter", () => {
     })
 
     it("respects onDidConvertCompletionItem", async () => {
-      const results = await getSuggestionsMock([{ label: "label" }], createRequest({}), (c, a, r) => {
-        ;(a as ac.TextSuggestion).text = `${c.label} ok`
+      const results = await getSuggestionsMock([{ label: "label" }], createRequest({}), 4, (c, a, r) => {
+        (a as ac.TextSuggestion).text = `${c.label} ok`
         a.displayText = r.scopeDescriptor.getScopesArray()[0]
       })
 
@@ -514,6 +516,7 @@ describe("AutoCompleteAdapter", () => {
             customRequest,
             undefined,
             undefined,
+            undefined,
             true
           )
 
@@ -537,6 +540,7 @@ describe("AutoCompleteAdapter", () => {
               },
             ],
             customRequest,
+            undefined,
             undefined,
             undefined,
             true
@@ -564,6 +568,7 @@ describe("AutoCompleteAdapter", () => {
             customRequest,
             undefined,
             undefined,
+            undefined,
             true
           )
 
@@ -589,6 +594,7 @@ describe("AutoCompleteAdapter", () => {
             customRequest,
             undefined,
             undefined,
+            undefined,
             true
           )
 
@@ -596,6 +602,132 @@ describe("AutoCompleteAdapter", () => {
           expect((results4[0] as TextSuggestion).text).toBe("hello world")
           expect(results4[0].replacementPrefix).toBe("")
           expect((results4[0] as any).customReplacementPrefix).toBe(undefined)
+        })
+      })
+
+      describe("handlePostInsertionTasks", () => {
+        beforeEach(() => {
+          spyOn(AutoCompleteAdapter, 'applyAdditionalTextEdits').and.callThrough()
+        })
+
+        it("calls applyAdditionalTextEdits only if required based on service version (version 4; should be called)", async () => {
+          const newText = "hello world"
+          const range = Range.create({ line: 1, character: 0 }, { line: 1, character: 0 + newText.length })
+          const additionalTextEdits = [
+            {
+              range,
+              newText,
+            },
+          ]
+          const results = await getSuggestionsMock(
+            [
+              {
+                label: "align",
+                sortText: "a",
+                additionalTextEdits,
+              },
+            ],
+            customRequest,
+            4,
+            undefined,
+            undefined,
+            true
+          )
+          expect(results[0].displayText).toBe("align")
+          expect((results[0] as TextSuggestion).text).toBe("align")
+          expect((results[0] as TextSuggestion).completionItem).toEqual({
+            label: "align",
+            sortText: "a",
+            additionalTextEdits,
+          })
+          const editor = (await atom.workspace.open(join(dirname(__dirname), "fixtures", "hello.js"))) as TextEditor
+          const suggestionInsertedEvent = {
+            editor,
+            triggerPosition: new Point(1, 0), // has no effect?
+            suggestion: results[0],
+          } as ac.SuggestionInsertedEvent
+          AutoCompleteAdapter.handlePostInsertionTasks(suggestionInsertedEvent, 4)
+          expect(AutoCompleteAdapter.applyAdditionalTextEdits).toHaveBeenCalled()
+        })
+
+        it("calls applyAdditionalTextEdits only if required based on service version (version 5; should be called)", async () => {
+          const newText = "hello world"
+          const range = Range.create({ line: 1, character: 0 }, { line: 1, character: 0 + newText.length })
+          const additionalTextEdits = [
+            {
+              range,
+              newText,
+            },
+          ]
+          const results = await getSuggestionsMock(
+            [
+              {
+                label: "align",
+                sortText: "a",
+                additionalTextEdits,
+              },
+            ],
+            customRequest,
+            4,
+            undefined,
+            undefined,
+            true
+          )
+          expect(results[0].displayText).toBe("align")
+          expect((results[0] as TextSuggestion).text).toBe("align")
+          expect((results[0] as TextSuggestion).completionItem).toEqual({
+            label: "align",
+            sortText: "a",
+            additionalTextEdits,
+          })
+          const editor = (await atom.workspace.open(join(dirname(__dirname), "fixtures", "hello.js"))) as TextEditor
+          const suggestionInsertedEvent = {
+            editor,
+            triggerPosition: new Point(1, 0), // has no effect?
+            suggestion: results[0],
+          } as ac.SuggestionInsertedEvent
+          AutoCompleteAdapter.handlePostInsertionTasks(suggestionInsertedEvent, 5)
+          expect(AutoCompleteAdapter.applyAdditionalTextEdits).toHaveBeenCalled()
+        })
+
+        it("calls applyAdditionalTextEdits only if required based on service version (version 5.1; should NOT be called)", async () => {
+          const newText = "hello world"
+          const range = Range.create({ line: 1, character: 0 }, { line: 1, character: 0 + newText.length })
+          const additionalTextEdits = [
+            {
+              range,
+              newText,
+            },
+          ]
+          const results = await getSuggestionsMock(
+            [
+              {
+                label: "align",
+                sortText: "a",
+                additionalTextEdits,
+              },
+            ],
+            customRequest,
+            4,
+            undefined,
+            undefined,
+            true
+          )
+          expect(results[0].displayText).toBe("align")
+          expect((results[0] as TextSuggestion).text).toBe("align")
+          expect((results[0] as TextSuggestion).completionItem).toEqual({
+            label: "align",
+            sortText: "a",
+            additionalTextEdits,
+          })
+          const editor = (await atom.workspace.open(join(dirname(__dirname), "fixtures", "hello.js"))) as TextEditor
+          const suggestionInsertedEvent = {
+            editor,
+            triggerPosition: new Point(1, 0), // has no effect?
+            suggestion: results[0],
+          } as ac.SuggestionInsertedEvent
+          AutoCompleteAdapter.handlePostInsertionTasks(suggestionInsertedEvent, 5.1)
+          expect(AutoCompleteAdapter.applyAdditionalTextEdits).not.toHaveBeenCalled()
         })
       })
 
@@ -618,6 +750,7 @@ describe("AutoCompleteAdapter", () => {
               },
             ],
             customRequest,
+            undefined,
             undefined,
             undefined,
             true
@@ -658,6 +791,7 @@ describe("AutoCompleteAdapter", () => {
             customRequest,
             undefined,
             undefined,
+            undefined,
             false
           )
 
@@ -681,6 +815,7 @@ describe("AutoCompleteAdapter", () => {
               },
             ],
             customRequest,
+            undefined,
             undefined,
             undefined,
             false
@@ -708,6 +843,7 @@ describe("AutoCompleteAdapter", () => {
             customRequest,
             undefined,
             undefined,
+            undefined,
             false
           )
 
@@ -731,6 +867,7 @@ describe("AutoCompleteAdapter", () => {
               },
             ],
             customRequest,
+            undefined,
             undefined,
             undefined,
             false

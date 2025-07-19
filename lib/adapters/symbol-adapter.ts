@@ -371,9 +371,8 @@ export default class SymbolAdapter {
 
           results.push(result)
         } else if ('location' in symbol && 'range' in symbol.location) {
-          let range = symbol.location.range
-          let position = Convert.positionToPoint(range.start)
-          let atomRange = Convert.lsRangeToAtomRange(range)
+          let range = Convert.lsRangeToAtomRange(symbol.location.range)
+          let position = Convert.positionToPoint(symbol.location.range.start)
           let tag = symbolKindToTag(symbol.kind)
           let context = symbol.containerName
 
@@ -381,7 +380,7 @@ export default class SymbolAdapter {
             name: symbol.name,
             position,
             path: Convert.uriToPath(symbol.location.uri),
-            range: atomRange,
+            range,
             tag,
             context
           }
