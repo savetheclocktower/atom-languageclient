@@ -5,6 +5,7 @@ import * as rpcNode from "vscode-jsonrpc/node"
 import * as path from "path"
 import * as atomIde from "atom-ide"
 import * as linter from "atom/linter"
+import safeGet from 'just-safe-get'
 import Convert from "./convert.js"
 import ApplyEditAdapter from "./adapters/apply-edit-adapter"
 import AutocompleteAdapter, { grammarScopeToAutoCompleteSelector } from "./adapters/autocomplete-adapter"
@@ -186,88 +187,257 @@ export default class AutoLanguageClient {
       // {ls.ServerCapabilities} for a full list.
       capabilities: {
         workspace: {
+          // If the server gives us `workspace/applyEdit` requests, we know how
+          // to apply them to the workspace.
           applyEdit: true,
-          configuration: false, // TODO
           workspaceEdit: {
+            // We support changes to existing documents…
             documentChanges: true,
-            normalizesLineEndings: false,
-            failureHandling: FailureHandlingKind.TextOnlyTransactional,
-            changeAnnotationSupport: undefined,
+            // …and edits that involve creating, renaming, and deleting files…
             resourceOperations: [
               ResourceOperationKind.Create,
               ResourceOperationKind.Rename,
               ResourceOperationKind.Delete
             ],
+            // …but, if failures happen in the middle of a `WorkspaceEdit`, we
+            // can only roll back the document changes, not the resource
+            // operations.
+            failureHandling: FailureHandlingKind.TextOnlyTransactional,
+            // As far as I know, there is nothing special about `TextEdit`s
+            // that exempts them from the general guarantee that line endings
+            // will be normalized (unless the user opts out of that behavior).
+            normalizesLineEndings: true,
+            // "Change annotations" means that we can, if the user wants, show
+            // these edits provisionally and allow the user to confirm or
+            // cancel them. We do not support this yet.
+            changeAnnotationSupport: undefined
           },
+          // "Workspace folders" means the ability to have more than one
+          // project root. This is certainly possible in Pulsar (multiple
+          // project roots), but we should still make sure this is handled
+          // properly.
+          //
+          // We seem to handle multi-root projects by spawning a separate
+          // instance of the server for each root. But if the server also
+          // supports `workspaceFolders`, this is probably unnecessary, and we
+          // could get away with just one server instance per project window.
           workspaceFolders: true,
+
+          // Traditionally, the client was responsible for sending
+          // configuration after connection, and for sending it again if any
+          // configuration values change.
+          //
+          // This capability signals that the client can respond to
+          // `workspace/configuration` requests initiated by the server and
+          // respond with the appropriate configuration values. It's not
+          // immediately clear how this is a _superior_ way for this to work,
+          // but it's easy enough to support this _if_ the package author works
+          // within the expected model of mapping package settings to language
+          // server settings.
+          //
+          // If a package overrides `getRootConfigurationKey` and (if
+          // necessary) `mapConfigurationObject`, it can indicate that it
+          // supports this model of server-initiated config retrieval by
+          // overriding `supportsWorkspaceConfiguration` to return `true`.
+          // Failing that, it may choose to override
+          // `getWorkspaceConfiguration` to use some other arbitrary means of
+          // retrieving configuration, in which case it should still override
+          // `supportsWorkspaceConfiguration` so that this capability is
+          // reported properly.
+          configuration: this.supportsWorkspaceConfiguration(),
+
+          // We can tell the server when the local configuration changes.
           didChangeConfiguration: {
             dynamicRegistration: false,
           },
+          // We can tell the server when watched files change.
           didChangeWatchedFiles: {
             dynamicRegistration: false,
           },
           symbol: {
             dynamicRegistration: false,
             symbolKind: {
+              // Simply by specifying this property, we're signaling that we
+              // can handle both known and unrecognized kinds of symbols.
               valueSet: KNOWN_SYMBOL_KINDS,
             },
             tagSupport: {
+              // Simply by specifying this property, we're signaling that we
+              // can handle any sort of "tag" placed on a symbol.
               valueSet: [],
             },
+            // We don't (yet) support receiving partial workspace symbols
+            // that then get resolved lazily.
+            resolveSupport: undefined
           },
+          // We signal that we can and will send `workspace/executeCommand`
+          // requests to the server when available.
           executeCommand: {
             dynamicRegistration: false,
           },
+          // We don't support semantic tokens, though I suppose we could if
+          // there were a demonstrated need for it.
           semanticTokens: undefined,
+
+          // "Code lenses", in VS Code parlance, are contextual metadata
+          // sprinkled throughout your source file. In Pulsar they would be
+          // implemented as block decorations, much like the conflict
+          // resolution controls from the `github` package.
+          //
+          // TODO: We should add support for this; no reason not to, and the
+          // user would have to opt into that presentation via a UI package
+          // anyway (which does not yet exist).
           codeLens: undefined,
+
+          // When the tree-view service supports it, we can keep the server
+          // notified when files are created, renamed, or deleted via user
+          // action in the tree view.
           fileOperations: {
             dynamicRegistration: false,
 
+            // These fire before the operation…
             willCreate: !!this.treeViewService,
             willRename: !!this.treeViewService,
             willDelete: !!this.treeViewService,
 
+            // …and these fire after it's done.
             didCreate: !!this.treeViewService,
             didRename: !!this.treeViewService,
             didDelete: !!this.treeViewService
           },
+
+          // To support this would mean to add decorations to markers (probably
+          // of the `overlay` type) so that we could render useful information
+          // at the ends of certain lines of the source file. (Debugger views
+          // are a good example of when this could be useful.)
+          //
+          // TODO: Might as well support this, though it will require a UI
+          // package to be fully realized.
+          inlineValue: {
+            // This exists as a capability in both `workspace` and
+            // `textDocument` because there exists a
+            // `workspace/inlineValue/refresh` request that suggests the client
+            // should invalidate and re-request _all_ inline values that are
+            // currently shown.
+            //
+            // Since we don't support inline values at all yet, we don't
+            // support this.
+            refreshSupport: false
+          },
+
+          // "Inlay hints" involve contextual metadata injected mid-line —
+          // e.g., the parameter names next to the arguments of a function.
+          //
+          // This is not easily supported in Pulsar — at least not with the
+          // same presentation as in VS Code — because we don't have a
+          // decoration style that can shift the horizontal position of text
+          // already rendered on a line.
+          //
+          // If we could figure out a different way to present it — or wade
+          // into the `text-buffer` code and add support for this sort of
+          // decoration — we could support this.
+          inlayHint: {
+            // This exists as a capability in both `workspace` and
+            // `textDocument` because there exists a
+            // `workspace/inlayHint/refresh` request that suggests the client
+            // should invalidate and re-request _all_ inlay hints that are
+            // currently shown.
+            //
+            // Since we don't support inlay hints at all yet, we don't
+            // support this.
+            refreshSupport: false
+          },
         },
+
+
         textDocument: {
           synchronization: {
             dynamicRegistration: false,
+            // We can notify the server before we save a document.
             willSave: true,
+            // We can notify the server before we save a document _and_ wait
+            // for the server to respond — just in case we need to make some
+            // edits before the file is committed to disk.
             willSaveWaitUntil: true,
+            // We can notify the server after we save a document.
+            //
+            // Amazingly, it's mandatory to support `textDocument/didOpen`,
+            // `/didChange`, and `/didClose`; but it is not mandatory to
+            // support `/didSave`. Still, it's easy to support.
             didSave: true,
           },
           completion: {
             dynamicRegistration: false,
             completionItem: {
+              // We have the ability to insert autocompletion items as
+              // snippets.
+              //
+              // TODO: Technically, we only support this if the `snippets`
+              // package is active (or if there is a consumer present for the
+              // `snippets` service.) If we wanted to be sticklers, we could
+              // make this conditional.
               snippetSupport: true,
+              // We don't support the idea that each completion item can have a
+              // distinct set of characters that signal acceptance of the
+              // suggestion.
               commitCharactersSupport: false,
+              // Documentation for suggestions can be specified in either
+              // Markdown or plain text.
               documentationFormat: [
                 MarkupKind.Markdown,
                 MarkupKind.PlainText
               ],
               deprecatedSupport: false,
+              // We don't (yet?) support the ability to designate one
+              // suggestion as "preselected." We could do this rather easily,
+              // but it would violate an existing convention that suggestions
+              // are ordered by provider rather than being interleaved.
+              //
+              // TODO: If we wanted to support this, we should do the
+              // following in `autocomplete-plus`:
+              //
+              // * If multiple providers designate an item with a `preselect`
+              //   property, the one with the highest inclusion priority wins;
+              //   the others have that property ignored.
+              // * If a provider designates a `preselect` property on an item
+              //   and it wins, we can promote that entire provider to be first
+              //   in the list even when its `suggestionPriority` would
+              //   otherwise preclude it.
+              // * Or, as an alternative: we could promote just the winning
+              //   `preselect` item, even though that could detach it from the
+              //   rest of the results from that provider.
               preselectSupport: false,
               tagSupport: {
+                // Only known tag is “Deprecated”; clients must support unknown
+                // tags at any rate.
                 valueSet: [],
               },
               insertReplaceSupport: true,
               resolveSupport: {
-                properties: [],
+                properties: ['documentation', 'detail'],
               },
               insertTextModeSupport: {
-                valueSet: [],
+                valueSet: [ls.InsertTextMode.adjustIndentation],
               },
+              // "Label details" involve strings of text to be displayed
+              // slightly less prominently _immediately_ after the suggestion's
+              // text — e.g., a method signature. We don't have that concept yet
+              // in `autocomplete-plus`.
+              labelDetailsSupport: false
             },
             completionItemKind: {
+              // We opt into the ability to handle unrecognized completion item
+              // "kinds," so we do not need to specify the whole list of
+              // possible kinds here.
               valueSet: [],
             },
+            // We support sending additional context information for
+            // `textDocument/completion`.
             contextSupport: true,
           },
           hover: {
             dynamicRegistration: false,
+            // Hover tooltips can render either Markdown or plain text.
             contentFormat: [
               MarkupKind.Markdown,
               MarkupKind.PlainText
@@ -276,6 +446,8 @@ export default class AutoLanguageClient {
           signatureHelp: {
             dynamicRegistration: false,
             signatureInformation: {
+              // Signature help tooltips can render either Markdown or plain
+              // text.
               documentationFormat: [
                 MarkupKind.Markdown,
                 MarkupKind.PlainText
@@ -311,29 +483,53 @@ export default class AutoLanguageClient {
             // `LocationLink`s? Not sure if it's worth it.
             linkSupport: false
           },
+          // Whether we understand and will send `textDocument/references`
+          // requests.
           references: {
             dynamicRegistration: false,
           },
+          // Document highlight is subtly different from
+          // `textDocument/references`. One difference that's clear in the
+          // spec: `textDocument/documentHighlight` can distinguish between
+          // reads from variables, writes to variables, and other sorts of
+          // references within the text.
+          //
+          // There's nothing to support or not support other than indicating
+          // that we _might_ send such requests. But I don't think any packages
+          // use this feature.
           documentHighlight: {
             dynamicRegistration: false,
           },
+          //
           documentSymbol: {
             dynamicRegistration: false,
             symbolKind: {
+              // Simply by specifying this property, we're signaling that we
+              // can handle both known and unrecognized kinds of symbols.
               valueSet: KNOWN_SYMBOL_KINDS,
             },
             tagSupport: {
+              // Simply by specifying this property, we're signaling that we
+              // can handle any sort of "tag" on a symbol.
               valueSet: [],
             },
+            // We support the concept of hierarchical document symbols. We can
+            // show them as such in outline-view packages, plus `symbols-view`
+            // knows how to navigate a hierarchy and flatten the symbols into
+            // a list.
             hierarchicalDocumentSymbolSupport: true,
+            // We can render an extra "label" in the UI next to each symbol.
             labelSupport: true,
           },
+          // We may send the server `textDocument/formatting` requests.
           formatting: {
             dynamicRegistration: false,
           },
+          // We may send the server `textDocument/rangeFormatting` requests.
           rangeFormatting: {
             dynamicRegistration: false,
           },
+          // We may send the server `textDocument/onTypeFormatting` requests.
           onTypeFormatting: {
             dynamicRegistration: false,
           },
@@ -372,63 +568,242 @@ export default class AutoLanguageClient {
           colorProvider: {
             dynamicRegistration: false,
           },
+          // We may send the server `textDocument/rename` requests.
           rename: {
             dynamicRegistration: false,
+            // We support the concept of pre-announcing the cursor position for
+            // where a user has tried to perform a rename. This allows the
+            // server to nudge us into a range that can validly be renamed — or
+            // to return `false`, signaling that there is nothing that can
+            // validly be renamed anywhere near the selection.
             prepareSupport: true,
+            // In lieu of explicit guidance from the server, our behavior is
+            // (roughly) to use our understanding of what can validly be an
+            // identifier in the editor's current grammar.
+            //
+            // This isn't _quite_ what we do, though; we end up just selecting
+            // whatever constitutes a word. So if the cursor is somewhere in
+            // `$foo`, we might only use the range for `foo`. This should be
+            // fixed, though I'm not immediately sure how. (Probably a
+            // scope-specific setting per grammar; something similar might
+            // already exist.)
             prepareSupportDefaultBehavior: PrepareSupportDefaultBehavior.Identifier,
+            // For us to support this, we'd have to have a way to provisionally
+            // show the range of edits that would be made by a rename request,
+            // and allow the user to confirm or cancel. That doesn't exist yet.
             honorsChangeAnnotations: false
           },
+          // Not exactly clear on what a "moniker" is, but it sounds like it's
+          // a way for a given symbol to be identified even across different
+          // "indexes" — which I take to mean different ways of keeping track
+          // of symbols, whether within one language server or across more than
+          // one.
+          //
+          // Monikers indicate their "uniqueness" in such a way that could
+          // allow different servers to agree that a symbol is equivalent, even
+          // across different file types. (For instance, a moniker can indicate
+          // that it is "globally" unique — as would be, perhaps, a URL or a
+          // GUID.)
+          //
+          // I don't know of a way this could be useful to us yet, but it
+          // exists if we ever need it.
           moniker: {
             dynamicRegistration: false,
           },
+
+          // Don't know of a package that supports any `typeHierarchy/*`
+          // requests, but such requests exist.
           typeHierarchy: {
             dynamicRegistration: false,
           },
+          // To support this would mean to add decorations to markers (probably
+          // of the `overlay` type) so that we could render useful information
+          // at the ends of certain lines of the source file. (Debugger views
+          // are a good example of when this could be useful.)
+          //
+          // This exists as a capability in both `workspace` and `textDocument`
+          // because there exists a `workspace/inlayHint/refresh` request that
+          // suggests the client should invalidate and re-request _all_ inline
+          // hints that are currently shown.
+          //
+          // TODO: Might as well support this, though it will require a UI
+          // package to be fully realized.
           inlineValue: {
             dynamicRegistration: false,
           },
           inlayHint: {
             dynamicRegistration: false,
           },
+          // Capabilities related to server-sent diagnostics (linting).
           publishDiagnostics: {
+            // Sometimes a diagnostic is related to another diagnostic. (For
+            // example, if a variable is defined twice, both locations get a
+            // diagnostic message, and they might as well be linked.)
+            //
+            // I don't think `steelbrain/linter` has specific support for this
+            // yet, but there's no reason to exclude it from the metadata we
+            // receive.
             relatedInformation: true,
             tagSupport: {
               // BLOCKED: on steelbrain/linter supporting ways of denoting
-              // useless code and deprecated symbols
+              // useless code and deprecated symbols.
+              //
+              // We don't do anything special with these, so it's easy for us
+              // to assert that we can handle any tag we receive.
               valueSet: [],
             },
+            // A language server might know the "version" of the buffer for
+            // which a diagnostic message is known to be valid. We don't do
+            // anything in `steelbrain/linter` to validate that this version
+            // matches the "version" of the buffer that we're currently on, so
+            // we can't claim to support this.
             versionSupport: false,
+            // We support the display of a URL that can explain a given error.
+            // (For instance, a linter might send a `codeDescription` property
+            // with a URL that explains the specific linting rule that was
+            // violated.)
             codeDescriptionSupport: true,
+            // The language server can send arbitrary data with a `Diagnostic`
+            // that should be sent along with a subsequent `codeAction/resolve`
+            // request.
             dataSupport: true,
           },
           callHierarchy: {
             dynamicRegistration: false,
           },
+          // We don't yet support any folding range features.
+          //
+          // Identification of folds in a document is a core feature in the
+          // editor and can't easily be implemented by a package. If we did
+          // implement this, it would probably be through definition of a
+          // service that could be consumed by the core application logic and
+          // would allow packages to define arbitrary styles of folding.
+          //
+          // In this model, TextMate and Tree-sitter would offer their folding
+          // styles as provider packages, and there would probably be another
+          // package for a very naive style of folding that operated entirely
+          // on indentation level. The user could rank their preferred sources
+          // of folding so that we knew which one to pick if several were
+          // available.
+          //
+          // If that were to happen, any IDE package would be able to act as a
+          // folding provider if it were supported by the underlying language
+          // server. But that's a long way away.
           foldingRange: undefined,
+
+          // This is broadly similar to our **Editor: Select Larger Syntax
+          // Node** and **Editor: Select Smaller Syntax Node** commands. We get
+          // that for free from Tree-sitter.
+          //
+          // Much like with folding ranges (as described above), if we wanted
+          // to expose this as another potential source of semantic
+          // highlighting ranges, we'd want to turn it into a service and have
+          // Tree-sitter be one among potentially many providers of this
+          // information.
+          //
+          // This is probably not worth the effort unless (a) it offered
+          // different, and better, results than Tree-sitter gave us; or (b)
+          // there's any chance of a widely-used grammar continuing to exist
+          // that has practically no chance of being converted to Tree-sitter.
+          // Both seem unlikely.
           selectionRange: undefined,
-          linkedEditingRange: undefined,
+
+          // The `textDocument/linkedEditingRange` request could be used to
+          // identify other ranges of a buffer that would benefit from an edit
+          // that the user wants to make to a certain range of the buffer.
+          //
+          // This feels a lot like a rename request, but is more lightweight
+          // and perhaps a better fit for, e.g., renaming both the opening and
+          // closing tag in an HTML document.
+          //
+          // But `pulsar-refactor` doesn't use this, nor does any other package
+          // I'm aware of. Still, it's client-initiated, so there's no harm in
+          // declaring theoretical support for it.
+          linkedEditingRange: {
+            dynamicRegistration: false
+          },
+
+          // We don't support semantic tokens, though I suppose we could if
+          // there were a demonstrated need for it.
           semanticTokens: undefined,
         },
         general: {
+          // When a request is stale — e.g., the client asked the server to do
+          // some work, but in the meantime a buffer was changed and the work
+          // is no longer useful — what happens?
           staleRequestSupport: {
+            // We do not currently have the ability to explicitly cancel such
+            // requests.
             cancel: false,
+            // For anything to appear in this list, we'd have to promise that,
+            // if we got a response from a language server with a
+            // `ContentModified` error for that kind of request, we'd
+            // automatically retry the request.
+            //
+            // Since we can't currently make that promise for any kind of
+            // request, the list is empty.
             retryOnContentModified: []
           },
+          // We use JavaScript-style regular expressions in all contexts.
           regularExpressions: {
             engine: 'ECMAScript',
             version: 'ES2020'
           },
+          // We do not implement any Markdown generation or parsing ourselves,
+          // so this metadata would be Pulsar's (or the individual UI
+          // package's) to provide.
+          //
+          // Any UI package that needs to support Markdown can choose whichever
+          // Markdown parser they want — and it's likely to vary across
+          // packages, making it hard to specify authoritative data here.
+          //
+          // Atom IDE "solved" this by exposing a Markdown service and using it
+          // across all its IDE packages. If enough of these UI packages became
+          // bundled packages (instead of community packages), then perhaps it
+          // would be safe to do something similar, and then we could report
+          // the metadata from the bundled Markdown service. But a lot of "if"s
+          // are at play here.
+          //
+          // Of the metadata that could be specified here, perhaps the most
+          // useful to the server would be a whitelist of HTML tags that are
+          // allowed when we render Markdown. But it's not clear to me from
+          // reading the LSP spec whether this means (a) the tags that are
+          // allowed to be present in _generated_ Markdown, or (b) the tags
+          // that are allowed to be written literally when writing Markdown
+          // (since all HTML is valid Markdown, at least in principle).
           markdown: undefined,
         },
         window: {
           // If this service exists, we can handle `workDoneProgress` messages.
+          // Without it, we have no easy way to signal that progress is
+          // happening toward a background task.
+          //
+          // We have a desire to expand beyond what `busy-signal` can represent
+          // and offer a more useful indeterminate-progress UI, but that's in
+          // the "pipe dream" stage at this point.
           workDoneProgress: !!this.busySignalService,
           showMessage: {
             messageActionItem: {
+              // A `window/showMessageRequest` request is initiated by the
+              // server. If `additionalPropertiesSupport` is `true`, the server
+              // may include additional properties in such a request, and we
+              // promise to give that data back to the server if the user
+              // chooses any of the actions offered in the message.
+              //
+              // TODO: I cannot imagine this would be difficult for us to
+              // support, so we should do it.
               additionalPropertiesSupport: false
             }
           },
-          showDocument: { support: true },
+          showDocument: {
+            // If the server says, "hey, can you open `abc://xyz`?" we can
+            // indeed pass that URI to `atom.workspace.open`. This would almost
+            // always be a `file://`-scheme URI and would be interpreted by
+            // Pulsar as a request to open a document in an editor, but it
+            // could technically be any other sort of URI. If Pulsar has an
+            // opener for such a URI, that behavior would be triggered instead.
+            support: true
+          },
         },
         experimental: {},
       },
@@ -656,6 +1031,10 @@ export default class AutoLanguageClient {
     }
     this.postInitialization(newServer)
 
+    if (this.supportsWorkspaceConfiguration()) {
+      connection.onWorkspaceConfiguration(this.getWorkspaceConfiguration.bind(this))
+    }
+
     connection.initialized()
 
     connection.on("close", () => {
@@ -742,6 +1121,54 @@ export default class AutoLanguageClient {
    */
   protected onSpawnExit(code: number | null, signal: NodeJS.Signals | null): void {
     this.logger.debug(`exit: code ${code} signal ${signal}`)
+  }
+
+  /**
+   * Whether this language client supports the `workspace/configuration`
+   * request sent from server to client. This contrasts with the
+   * `workspace/didChangeConfiguration` method, which is sent from server to
+   * client.
+   *
+   * This method returns `false` by default. Override it to return true if you
+   * have also overridden {@link getRootConfigurationKey} and can assert that
+   * the return value of {@link mapConfigurationObject} accurately describes
+   * your configuration. If these conditions are met, this package can handle
+   * such requests automatically.
+   *
+   * If you prefer, you may use some other method of handling such lookups
+   * from the server by overriding {@link getWorkspaceConfiguration}; in that
+   * case, you should still override this method as well to return `true`.
+   */
+  protected supportsWorkspaceConfiguration() {
+    return false
+  }
+
+  /**
+   * Called when a server wants to look up certain settings on the client.
+   *
+   * The default implementation assumes that you have mapped your package's
+   * configuration (or a subset thereof) to the language server's configuration
+   * via {@link getRootConfigurationKey} and {@link mapConfigurationObject}. If
+   * this is not accurate, you can override this method and implement your own
+   * logic for retrieving settings.
+   *
+   * Either way, we only report this capability to the server if you opt into
+   * it by overriding {@link supportsWorkspaceConfiguration} to return `true`.
+   */
+  protected async getWorkspaceConfiguration(params: ls.ConfigurationParams): Promise<ls.LSPAny[]> {
+    let key = this.getRootConfigurationKey()
+    if (key === '') {
+      throw new Error('Server did not implement getRootConfigurationKey')
+    }
+    let rawSettings = atom.config.get(key)
+    let mappedSettings = this.mapConfigurationObject(rawSettings)
+
+    // For now we're ignoring any `scopeUri` property present for each
+    // configuration item, at least until there's a use case for paying
+    // attention to it.
+    return params.items.map(({ section }) => {
+      return section ? safeGet(mappedSettings, section) : mappedSettings
+    })
   }
 
   /**

@@ -29,6 +29,7 @@ export interface KnownRequests {
 	// it as something that responds with null.
 	"window/workDoneProgress/create": [lsp.WorkDoneProgressCreateParams, null]
 	"$/progress": [ProgressParams<any>, null]
+	"workspace/configuration": [lsp.ConfigurationParams, lsp.LSPAny[]]
   [custom: string]: [Record<string, any>, Record<string, any> | null]
 }
 
@@ -196,6 +197,15 @@ export class LanguageClientConnection extends EventEmitter {
   public onLogMessage(callback: (params: lsp.LogMessageParams) => void): void {
     this._onNotification({ method: "window/logMessage" }, callback)
   }
+
+	/**
+	 * Public: Register a callback for the `workspace/configuration` message.
+	 * @param callback The function to be called when the `workspace/configuration` message is received with
+	 *   {@link lsp.ConfigurationParams} being passed.
+	 */
+	public onWorkspaceConfiguration(callback: (params: lsp.ConfigurationParams) => Promise<lsp.LSPAny[]>): void {
+		this._onRequest({ method: 'workspace/configuration' }, callback)
+	}
 
   /**
    * Public: Register a callback for the `telemetry/event` message.
