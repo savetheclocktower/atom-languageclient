@@ -1,5 +1,5 @@
 /* eslint-disable no-shadow, @typescript-eslint/no-unused-vars */
-import { Point, /* Notification, NotificationOptions,*/ TextEditor } from "atom"
+import { Point, ScopeDescriptor, /* Notification, NotificationOptions,*/ TextEditor } from "atom"
 
 // NOTE: due to a bug in how TypeScript resolves ambient augments,
 // need to be more specific here for TextEditor to keep its "class"
@@ -31,7 +31,11 @@ declare module "atom/src/notification" {
 
 declare module "atom/src/config" {
   interface Config {
-    get<T extends "atom-i18n.locale">(key: T): string
+    get<T extends "atom-i18n.locale">(key: T, options?: {
+      sources?: string[] | undefined;
+      excludeSources?: string[] | undefined;
+      scope?: string[] | ScopeDescriptor | undefined;
+    }): string
   }
 }
 
