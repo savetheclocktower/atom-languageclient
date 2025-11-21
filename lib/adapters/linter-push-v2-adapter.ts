@@ -307,7 +307,9 @@ export default class LinterPushV2Adapter {
               // `solutions` to be a promise, but the UI doesn't seem to like
               // it.
               message.solutions ??= []
-              message.solutions.push(solution)
+              if (Array.isArray(message.solutions)) {
+                message.solutions.push(solution)
+              }
             }
           }
         }

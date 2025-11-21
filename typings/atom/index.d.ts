@@ -21,14 +21,6 @@ declare module "atom/src/workspace" {
 }
 
 
-declare module "atom/src/notification" {
-  /** Non-public Notification api */
-  interface Notification {
-    isDismissed?: () => boolean
-    getOptions?: () => NotificationOptions | null
-  }
-}
-
 declare module "atom/src/config" {
   interface Config {
     get<T extends "atom-i18n.locale">(key: T, options?: {
