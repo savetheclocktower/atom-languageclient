@@ -106,14 +106,6 @@ export default class AutoLanguageClient {
   private _isDeactivating: boolean = false
   private _serverAdapters = new WeakMap<ActiveServer, ServerAdapters>()
 
-  /**
-   * The highest version of the `autocomplete.provider` service contract we've
-   * provided. IDE packages _must_ specify the service versions with highest
-   * version first so we can properly negotiate to use the highest version
-   * available.
-   */
-  private _maxAutocompleteApiVersion?: number
-
   /** Available if consumeBusySignal is setup */
   protected busySignalService?: atomIde.BusySignalService
 
@@ -1454,11 +1446,7 @@ export default class AutoLanguageClient {
     return 2
   }
 
-  protected provideAutocomplete(apiVersion = 4): ac.AutocompleteProvider | null {
-    if (this._maxAutocompleteApiVersion && this._maxAutocompleteApiVersion >= apiVersion) {
-      return null
-    }
-    this._maxAutocompleteApiVersion = apiVersion
+  public provideAutocomplete(): ac.AutocompleteProvider {
     return {
       selector: this.getGrammarScopes()
         .map((g) => grammarScopeToAutoCompleteSelector(g))
@@ -1470,33 +1458,16 @@ export default class AutoLanguageClient {
       suggestionPriority: this.getSuggestionPriorityForAutocomplete(),
       excludeLowerPriority: false,
       filterSuggestions: true,
-      getSuggestions: this.getSuggestions.bind(this, apiVersion),
+      getSuggestions: this.getSuggestions.bind(this),
       onDidInsertSuggestion: (event) => {
-        AutocompleteAdapter.handlePostInsertionTasks(event, apiVersion)
+        AutocompleteAdapter.applyAdditionalTextEdits(event)
         this.onDidInsertSuggestion(event)
       },
       getSuggestionDetailsOnSelect: this.getSuggestionDetailsOnSelect.bind(this)
     }
   }
 
-  // Baseline `autocompete.provider` support involves this package doing a lot
-  // of the extra work on its own, such as `additionalTextEdits`.
-  public provideAutocomplete_4(): ac.AutocompleteProvider | null {
-    return this.provideAutocomplete(4)
-  }
-
-  // Opting into version 5 enables the `ranges` property on a `Suggestion`.
-  public provideAutocomplete_5(): ac.AutocompleteProvider | null {
-    return this.provideAutocomplete(5)
-  }
-
-  // Opting into version 5.1 enables the `textEdit` and `additionalTextEdits`
-  // properties on `Suggestion`s.
-  public provideAutocomplete_5_1(): ac.AutocompleteProvider | null {
-    return this.provideAutocomplete(5.1)
-  }
-
-  protected async getSuggestions(apiVersion: number, request: ac.SuggestionsRequestedEvent): Promise<ac.AnySuggestion[]> {
+  protected async getSuggestions(request: ac.SuggestionsRequestedEvent): Promise<ac.AnySuggestion[]> {
     const server = await this._serverManager.getServer(request.editor)
     if (server == null || !AutocompleteAdapter.canAdapt(server.capabilities)) {
       return []
@@ -1507,7 +1478,6 @@ export default class AutoLanguageClient {
     return this.autoComplete.getSuggestions(
       server,
       request,
-      apiVersion,
       this.onDidConvertAutocomplete,
       atom.config.get("autocomplete-plus.minimumWordLength")
     )
@@ -1527,9 +1497,8 @@ export default class AutoLanguageClient {
   }
 
   /**
-   * Invoked when a {@link ls.CompletionItem} is converted into a
-   * {@link ac.AnySuggestion} (translating LSP types to `autocomplete-plus`
-   * types).
+   * Invoked when a {@link ls.CompletionItem} is converted into a {@link
+   * ac.AnySuggestion} (translating LSP types to `autocomplete-plus` types).
    *
    * You may use this as an opportunity to customize the suggestion further or
    * change some of its metadata.
