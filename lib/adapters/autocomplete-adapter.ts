@@ -19,7 +19,7 @@ import {
   TextEdit,
 } from "../languageclient"
 import ApplyEditAdapter from "./apply-edit-adapter"
-import { Point, TextEditor } from "atom"
+import { Point, Range as AtomRange, TextEditor } from "atom"
 import * as ac from "atom/autocomplete-plus"
 import { Suggestion, TextSuggestion, SnippetSuggestion, SuggestionBase } from "../types/autocomplete-extended"
 
@@ -335,8 +335,15 @@ export default class AutocompleteAdapter {
     const buffer = request.editor.getBuffer()
     const cursor = request.bufferPosition
     const prefixStartColumn = cursor.column - request.prefix.length
+    let lastCharacterRange = new AtomRange(
+      cursor,
+      cursor.translate([0, -1])
+    );
+    let lastCharacter = buffer.getTextInRange(lastCharacterRange);
     for (const triggerChar of triggerChars) {
       if (request.prefix.endsWith(triggerChar)) {
+        return [triggerChar, true]
+      } else if (triggerChar === lastCharacter) {
         return [triggerChar, true]
       }
       if (prefixStartColumn >= triggerChar.length) {
@@ -583,7 +590,7 @@ export default class AutocompleteAdapter {
   public static applyTextEditToSuggestion(
     textEdit: TextEdit | InsertReplaceEdit | undefined,
     editor: TextEditor,
-    triggerColumns: [number, number],
+    _triggerColumns: [number, number],
     originalBufferPosition: Point,
     suggestion: TextSuggestion,
     shouldReplace: ShouldReplace
@@ -602,11 +609,7 @@ export default class AutocompleteAdapter {
     const atomRange = Convert.lsRangeToAtomRange(range)
     suggestion.customReplacementPrefix = editor.getTextInBufferRange([atomRange.start, originalBufferPosition])
 
-    // TODO: Needed to fix TypeScript completions. This line seems flat-out
-    // wrong in all contexts, but maybe it's failing only for TypeScript's
-    // language server and not others.
-
-    // suggestion.text = textEdit.newText
+    suggestion.text = textEdit.newText
   }
 
   /**
