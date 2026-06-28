@@ -132,8 +132,10 @@ function addNotificationForMessage(
   options: NotificationOptions
 ): Notification | null {
   function isDuplicate(note: Notification): boolean {
-    const noteDismissed = note.isDismissed && note.isDismissed()
-    const noteOptions = (note.getOptions && note.getOptions()) || {}
+    // @ts-ignore
+    const noteDismissed = note.isDismissed?.()
+    // @ts-ignore
+    const noteOptions = note.getOptions?.()
     return (
       !noteDismissed &&
       note.getType() === messageTypeToString(messageType) &&

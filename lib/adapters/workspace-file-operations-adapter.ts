@@ -1,12 +1,22 @@
 import { Disposable } from "atom"
-import { CreateFilesParams, DeleteFilesParams, FileOperationOptions, FileOperationRegistrationOptions, RenameFilesParams, ServerCapabilities, WorkspaceEdit } from "vscode-languageserver-protocol"
-import { FileOperationFilter, FileOperationPatternKind } from "vscode-languageserver-protocol/lib/common/protocol.fileOperations"
+import {
+  CreateFilesParams,
+  DeleteFilesParams,
+  FileOperationOptions,
+  FileOperationPatternKind,
+  FileOperationRegistrationOptions,
+  RenameFilesParams,
+  ServerCapabilities,
+  WorkspaceEdit
+} from "vscode-languageserver-protocol"
 import Convert from "../convert"
 import { LanguageClientConnection } from "../languageclient"
 import * as FS from 'fs/promises'
-import * as Path from 'path'
+// import * as Path from 'path'
 import minimatch from 'minimatch'
 import ApplyEditAdapter from "./apply-edit-adapter"
+
+type FileOperationFilter = FileOperationRegistrationOptions['filters'][number];
 
 type MoveAction = { initialPath: string, newPath: string }
 // Creation and deletion callbacks take an array of paths.
@@ -229,6 +239,7 @@ export default class WorkspaceFileOperationsAdapter {
   private async _filter(capability: FileOperationRegistrationOptions | undefined, items: Array<MoveAction>, property: string) : Promise<Array<MoveAction>>
   private async _filter(capability: FileOperationRegistrationOptions | undefined, items: Array<string | MoveAction>, property?: string) {
     let filters = capability?.filters
+
     if (!filters) return items
 
     return items.filter(async (item) => {

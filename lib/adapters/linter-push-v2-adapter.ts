@@ -160,7 +160,7 @@ export default class LinterPushV2Adapter {
       // able to match up each returned code action with its original
       // diagnostic message. The server can optionally do so, but does not have
       // to.
-      linterMessage.solutions = this.getCodeActions(editor, range, [diag]).then(
+      this.getCodeActions(editor, range, [diag]).then(
         (result) => {
           let solutions: LinterMessageSolution[]
           if (!result) {
@@ -371,7 +371,7 @@ export default class LinterPushV2Adapter {
         file: path,
         position: Convert.lsRangeToAtomRange(diagnostic.range),
       },
-      excerpt: diagnostic.message,
+      excerpt: Convert.diagnosticMessageToString(diagnostic.message),
       linterName: diagnostic.source,
       severity: LinterPushV2Adapter.diagnosticSeverityToSeverity(diagnostic.severity || -1),
     }
@@ -524,7 +524,7 @@ function lsDiagnosticToV2Message(path: string, diagnostic: Diagnostic): linter.M
     reference: relatedInformationToReference(diagnostic.relatedInformation),
     url: diagnostic.codeDescription?.href,
     icon: iconForLSSeverity(diagnostic.severity ?? DiagnosticSeverity.Error),
-    excerpt: diagnostic.message,
+    excerpt: Convert.diagnosticMessageToString(diagnostic.message),
     linterName: diagnostic.source,
     severity: lsSeverityToV2MessageSeverity(diagnostic.severity ?? DiagnosticSeverity.Error),
     // BLOCKED: on steelbrain/linter#1722

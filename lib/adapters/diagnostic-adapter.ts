@@ -25,7 +25,11 @@ export default class IdeDiagnosticAdapter extends LinterPushV2Adapter {
     const codeMap = new Map()
     const messages = params.diagnostics.map((d) => {
       const linterMessage = this.diagnosticToV2Message(path, d)
-      codeMap.set(getCodeKey(linterMessage.location.position, d.message), d.code)
+      let key = getCodeKey(
+        linterMessage.location.position,
+        Convert.diagnosticMessageToString(d.message)
+      )
+      codeMap.set(key, d.code)
       return linterMessage
     })
     this._diagnosticMap.set(path, messages)

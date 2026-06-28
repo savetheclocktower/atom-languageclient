@@ -224,7 +224,7 @@ export default class Convert {
    *   objects to convert.
    * @returns An array of Atom {@link atomIde.TextEdit} objects.
    */
-  public static convertLsTextEdits(textEdits?: ls.TextEdit[] | null): atomIde.TextEdit[] {
+  public static convertLsTextEdits(textEdits?: (ls.TextEdit | ls.AnnotatedTextEdit | ls.SnippetTextEdit)[] | null): atomIde.TextEdit[] {
     return (textEdits || []).map(Convert.convertLsTextEdit)
   }
 
@@ -236,11 +236,18 @@ export default class Convert {
    *   object to convert.
    * @returns An Atom {@link atomIde.TextEdit} object.
    */
-  public static convertLsTextEdit(textEdit: ls.TextEdit): atomIde.TextEdit {
+  public static convertLsTextEdit(textEdit: ls.TextEdit | ls.AnnotatedTextEdit | ls.SnippetTextEdit): atomIde.TextEdit {
     // TODO: support annotations
+    // TODO: This is a kludge just to get past `SnippetTextEdit` support.
+    let newText = ls.SnippetTextEdit.is(textEdit) ? textEdit.snippet.value : textEdit.newText
     return {
       oldRange: Convert.lsRangeToAtomRange(textEdit.range),
-      newText: textEdit.newText,
+      newText
     }
+  }
+
+  public static diagnosticMessageToString(message: string | ls.MarkupContent) {
+    if (typeof message === 'string') return message
+    return message.value
   }
 }

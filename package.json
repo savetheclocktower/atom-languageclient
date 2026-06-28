@@ -34,8 +34,8 @@
     "patch-package": "^8.0.0",
     "rimraf": "^3.0.2",
     "vscode-jsonrpc": "6.0.0",
-    "vscode-languageserver-protocol": "^3.17.0",
-    "vscode-languageserver-types": "^3.17.0"
+    "vscode-languageserver-protocol": "^3.18.1",
+    "vscode-languageserver-types": "^3.18.0"
   },
   "devDependencies": {
     "@types/atom": "1.40.12",

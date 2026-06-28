@@ -422,6 +422,24 @@ export class LanguageClientConnection extends EventEmitter {
     this._onNotification({ method: "textDocument/publishDiagnostics" }, callback)
   }
 
+	/**
+	 * Public: Send a `textDocument/diagnostic` request.
+	 *
+	 * @param params The {DocumentDiagnosticParams} for the request.
+   * @param cancellationToken The {CancellationToken} that is used to cancel this request if necessary.
+	 * @returns A {Promise} containing a {DocumentDiagnosticReport}.
+	 */
+	public diagnostic(
+		params: lsp.DocumentDiagnosticParams,
+		cancellationToken?: jsonrpc.CancellationToken
+	): Promise<lsp.DocumentDiagnosticReport | null> {
+		return this._sendRequest(
+			lsp.DocumentDiagnosticRequest.type,
+			params,
+			cancellationToken
+		)
+	}
+
   /**
    * Public: Send a `textDocument/completion` request.
    *

@@ -5,7 +5,6 @@ import * as rpcNode from "vscode-jsonrpc/node"
 import * as path from "path"
 import * as atomIde from "atom-ide"
 import * as linter from "atom/linter"
-import safeGet from 'just-safe-get'
 import Convert from "./convert.js"
 import ApplyEditAdapter from "./adapters/apply-edit-adapter"
 import AutocompleteAdapter, { grammarScopeToAutoCompleteSelector } from "./adapters/autocomplete-adapter"
@@ -63,6 +62,7 @@ import type * as intentions from "./adapters/intentions-list-adapter"
 import type * as symbol from "./adapters/symbol-adapter"
 import type * as refactor from "./adapters/rename-adapter"
 import WorkspaceFileOperationsAdapter, { TreeViewV2Service } from "./adapters/workspace-file-operations-adapter"
+import LinterPullAdapter from "./adapters/linter-pull-adapter"
 
 export {
   ActiveServer,
@@ -81,6 +81,12 @@ export interface ServerAdapters {
 let KNOWN_SYMBOL_KINDS: SymbolKind[] = []
 for (let i = 1; i < 27; i++) {
   KNOWN_SYMBOL_KINDS.push(i as SymbolKind)
+}
+
+function safeGet (obj: unknown, keyPath: string): unknown {
+  return keyPath.split('.').reduce((acc, key) => {
+    return (acc as any)?.[key]
+  }, obj)
 }
 
 /**
@@ -126,6 +132,7 @@ export default class AutoLanguageClient {
   protected findReferences?: FindReferencesAdapter
   protected outlineView?: OutlineViewAdapter
   protected symbolProvider?: SymbolAdapter
+  protected linterPullAdapter?: LinterPullAdapter
 
   // -------------------------------------------------------------------------
   // You must implement these so we know how to deal with your language and
@@ -434,6 +441,13 @@ export default class AutoLanguageClient {
             // We support sending additional context information for
             // `textDocument/completion`.
             contextSupport: true,
+          },
+          diagnostic: {
+            dynamicRegistration: false,
+            // TODO: Related document support — e.g., `clangd` being able to
+            // connect a linter message to an `#include` in a header file.
+            relatedDocumentSupport: false,
+
           },
           hover: {
             dynamicRegistration: false,
@@ -1346,6 +1360,7 @@ export default class AutoLanguageClient {
         this.treeViewService,
         server.capabilities?.workspace?.fileOperations
       )
+      this.logger.info('Instantiated', workspaceFileOperationsAdapter)
     }
 
     this._intentionsManager = this.findOrCreateIntentionsManager()
@@ -1758,7 +1773,7 @@ export default class AutoLanguageClient {
     return this.callHierarchy.getCallHierarchy(server.connection, editor, point, "outgoing")
   }
 
-  // Linter push v2 API via LS publishDiagnostics ------------------------------
+  // Linter push v2 API via LS publishDiagnostics -----------------------------
   public consumeLinterV2(
     registerIndie: (params: { name: string }) => linter.IndieDelegate
   ): void {
@@ -1770,6 +1785,29 @@ export default class AutoLanguageClient {
       const linterPushV2 = this.getServerAdapter(server, "linterPushV2")
       if (linterPushV2 != null) {
         linterPushV2.attach(this._linterDelegate)
+      }
+    }
+  }
+
+  // Linter pull v2 API via textDocument/diagnostic ---------------------------
+  public provideLinter(): linter.LinterProvider {
+    this.linterPullAdapter ??= new LinterPullAdapter({
+      intentionsManager: this._intentionsManager
+    })
+    return {
+      name: this.getServerName(),
+      scope: 'file',
+      lintsOnChange: false, // TODO
+      grammarScopes: this.getGrammarScopes(),
+      lint: async (editor: TextEditor) => {
+        const server = await this._serverManager.getServer(editor)
+        if (!server) return null
+        try {
+          return await this.linterPullAdapter!.lint(server, editor)
+        } catch (err) {
+          console.error(err)
+          return null
+        }
       }
     }
   }
@@ -1786,7 +1824,7 @@ export default class AutoLanguageClient {
     )
   }
 
-  // Find References via LS findReferences------------------------------
+  // Find References via LS findReferences-------------------------------------
   public provideFindReferences(): atomIde.FindReferencesProvider {
     return {
       isEditorSupported: (editor: TextEditor) => this.getGrammarScopes().includes(editor?.getGrammar().scopeName),
@@ -2008,7 +2046,7 @@ export default class AutoLanguageClient {
   protected async getRawCodeActions(
     editor: TextEditor,
     range: Range,
-    diagnostics: ls.Diagnostic[]
+    diagnostics: ls.Diagnostic[] = []
   ): Promise<(ls.Command | ls.CodeAction)[] | null> {
     const server = await this._serverManager.getServer(editor)
     if (server == null || !CodeActionAdapter.canAdapt(server.capabilities)) {

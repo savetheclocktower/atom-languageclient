@@ -37,7 +37,7 @@ describe("CustomLinterPushV2Adapter", () => {
       const adapter = new CustomLinterPushV2Adapter(connection)
       const result = adapter.diagnosticToV2Message(filePath, diagnostic)
 
-      expect(result.excerpt).toBe(diagnostic.message)
+      expect(result.excerpt).toBe(diagnostic.message as string)
       expect(result.linterName).toBe(diagnostic.source)
       expect(result.location.file).toBe(filePath)
       expect(result.location.position).toEqual(new Range(new Point(1, 2), new Point(3, 4)))
