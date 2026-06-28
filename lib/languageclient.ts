@@ -771,14 +771,16 @@ export class LanguageClientConnection extends EventEmitter {
     try {
       const start = performance.now()
       let result: R
-      if (cancellationToken) {
+      // vscode-jsonrpc seems to treat undefined arguments differently from
+      // omitted arguments. Hence we try to omit `args` and `cancellationToken`
+      // if they're not present.
+			if (cancellationToken != null) {
         result = await this._rpc.sendRequest(method, args, cancellationToken)
-      } else {
-        // If cancellationToken is null or undefined, don't add the third
-        // argument otherwise vscode-jsonrpc will send an additional, null
-        // message parameter to the request
+			} else if (args != null) {
         result = await this._rpc.sendRequest(method, args)
-      }
+			} else {
+				result = await this._rpc.sendRequest(method)
+			}
 
       const took = performance.now() - start
       this._log.debug(`rpc.sendRequest ${method} received (${Math.floor(took)}ms)`, result)
