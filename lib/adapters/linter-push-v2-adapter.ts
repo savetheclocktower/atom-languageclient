@@ -515,7 +515,7 @@ export function diagnosticTypeToLSSeverity(type: atomIde.DiagnosticType): ls.Dia
  * @returns A {@link Message} equivalent to the {@link Diagnostic} object
  *   supplied by the language server.
  */
-function lsDiagnosticToV2Message(path: string, diagnostic: Diagnostic): linter.Message {
+export function lsDiagnosticToV2Message(path: string, diagnostic: Diagnostic): linter.Message {
   return {
     location: {
       file: path,

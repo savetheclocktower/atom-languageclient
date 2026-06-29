@@ -1,11 +1,11 @@
 import * as linter from "atom/linter"
-import { Diagnostic, DocumentDiagnosticParams, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport, LanguageClientConnection, MarkupContent } from "../languageclient"
+import { DocumentDiagnosticParams, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport, LanguageClientConnection } from "../languageclient"
 import { CancellationTokenSource } from "vscode-jsonrpc"
 import { Logger, NullLogger } from "../logger"
 import { Point, Range, TextEditor } from "atom"
 import * as Utils from '../utils'
 import Convert from "../convert"
-import LinterPushV2Adapter from "./linter-push-v2-adapter"
+import { lsDiagnosticToV2Message } from "./linter-push-v2-adapter"
 import { ActiveServer } from "../server-manager"
 import IntentionsListAdapter from "./intentions-list-adapter"
 
@@ -70,30 +70,12 @@ export default class LinterPullAdapter {
     let filePath = editor.getPath() ?? ''
     let messages = items.map(item => {
       let code = item.code ? String(item.code) : null
-      let message = this.diagnosticToV2Message(filePath, item)
+      let message = lsDiagnosticToV2Message(filePath, item)
       this.intentionsListAdapter?.onLinterMessageAdded(filePath, message, code ?? '', item, () => {}) // TODO
       return message
     })
     this.currentMessagesForEditor.set(editor, messages)
     return messages
-  }
-
-  // TODO: Share utilities between linter types.
-  public diagnosticToV2Message (filePath: string, diagnostic: Diagnostic): linter.Message {
-    return {
-      location: {
-        file: filePath,
-        position: Convert.lsRangeToAtomRange(diagnostic.range)
-      },
-      excerpt: this.normalizeMessageText(diagnostic.message),
-      linterName: diagnostic.source,
-      severity: LinterPushV2Adapter.diagnosticSeverityToSeverity(diagnostic.severity ?? -1)
-    }
-  }
-
-  private normalizeMessageText (text: string | MarkupContent) {
-    if (typeof text === 'string') return text
-    return text.value
   }
 
   public getDiagnosticsForEditorAtPosition (editor: TextEditor, position: Point | Range) {

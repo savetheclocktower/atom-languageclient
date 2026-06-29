@@ -356,7 +356,6 @@ export default class AutoLanguageClient {
           },
         },
 
-
         textDocument: {
           synchronization: {
             dynamicRegistration: false,
@@ -444,10 +443,34 @@ export default class AutoLanguageClient {
           },
           diagnostic: {
             dynamicRegistration: false,
+
             // TODO: Related document support — e.g., `clangd` being able to
             // connect a linter message to an `#include` in a header file.
             relatedDocumentSupport: false,
 
+            // Whether the client supports related information. For instance,
+            // if the author tries to declare a variable whose name is already
+            // used elsewhere in scope, this information can be used to
+            // highlight _both_ variable usages. Disabled because this isn't
+            // a concept in `linter`.
+            relatedInformation: false,
+
+            // Whether the client supports diagnostics linking to background
+            // information for the given diagnostic code via a URL. The `linter`
+            // service envisions an optional `url` property on a message, so
+            // this is fine.
+            codeDescriptionSupport: true,
+
+            // Whether the client will preserve a `data` property on a
+            // diagnostic message… and pass it along on a subsequent code
+            // action request.
+            dataSupport: false,
+
+            // Whether the linter supports markup messages. Since the `linter`
+            // service does not envision this, this value is `false`, and will
+            // be unless/until we decide to iterate the `linter` service to
+            // support it.
+            markupMessageSupport: false,
           },
           hover: {
             dynamicRegistration: false,
