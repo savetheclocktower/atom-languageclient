@@ -22,23 +22,19 @@
     "test": "npm run compile && pulsar --test build/test",
     "test.format": "prettier . --check",
     "test.lint": "eslint .",
-    "watch": "npm run compile -- --watch",
-    "patch": "patch-package",
-    "postinstall": "npm run patch || true"
+    "watch": "npm run compile -- --watch"
   },
   "dependencies": {
     "atom-ide-base": "^3.3.0",
     "fuzzaldrin": "^2.1.0",
-    "just-safe-get": "^4.2.0",
     "minimatch": "^7.4.6",
-    "patch-package": "^8.0.0",
     "rimraf": "^3.0.2",
     "vscode-jsonrpc": "6.0.0",
     "vscode-languageserver-protocol": "^3.18.1",
     "vscode-languageserver-types": "^3.18.0"
   },
   "devDependencies": {
-    "@types/atom": "1.40.12",
+    "@types/atom": "npm:@pulsar-edit/types@^1.132.0",
     "@types/fuzzaldrin": "^2.1.7",
     "@types/jasmine": "^4.0.0",
     "@types/node": "^20.11.1",

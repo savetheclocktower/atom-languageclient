@@ -106,5 +106,5 @@ export default class LinterPullAdapter {
 }
 
 function positionIsPoint (position: Point | Range): position is Point {
-  return ('row' in position) && (typeof position.row === 'number');
+  return ('row' in position) && (typeof position.row === 'number')
 }
