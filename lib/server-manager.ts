@@ -9,8 +9,8 @@ import { ReportBusyWhile } from "./utils"
 export type MinimalLanguageServerProcess = Pick<ChildProcess, "stdin" | "stdout" | "stderr" | "pid" | "kill" | "on">
 
 /**
- * Public: Defines a language server process which is either a ChildProcess, or
- * it is a minimal object that resembles a ChildProcess.
+ * Public: Defines a language server process — either a `ChildProcess` or a
+ * minimal object that resembles a `ChildProcess`.
  *
  * `MinimalLanguageServerProcess` is used so that language packages with
  * alternative language server process hosting strategies can return something
@@ -34,7 +34,10 @@ interface RestartCounter {
   timerId: NodeJS.Timeout
 }
 
-/** Manages the language server lifecycles and their associated objects necessary for adapting them to Atom IDE. */
+/**
+ * Manages the language server lifecycles and their associated objects
+ * necessary for adapting them to Atom IDE.
+ */
 export class ServerManager {
   private _activeServers: ActiveServer[] = []
   private _startingServerPromises: Map<string, Promise<ActiveServer>> = new Map()
@@ -62,11 +65,11 @@ export class ServerManager {
   public startListening(): void {
     if (!this._isStarted) {
       this._disposable = new CompositeDisposable()
-      this._disposable.add(atom.textEditors.observe(this.observeTextEditors.bind(this)))
-      this._disposable.add(atom.project.onDidChangePaths(this.projectPathsChanged.bind(this)))
-      if (atom.project.onDidChangeFiles) {
-        this._disposable.add(atom.project.onDidChangeFiles(this.projectFilesChanged.bind(this)))
-      }
+      this._disposable.add(
+        atom.textEditors.observe(this.observeTextEditors.bind(this)),
+        atom.project.onDidChangePaths(this.projectPathsChanged.bind(this)),
+        atom.project.onDidChangeFiles(this.projectFilesChanged.bind(this))
+      )
     }
     this._isStarted = true
   }
