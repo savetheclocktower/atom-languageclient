@@ -1,9 +1,9 @@
-import Convert from "../convert"
-import * as Utils from "../utils"
+import { Point, Range as AtomRange, TextEditor } from "atom"
+import * as ac from "atom/autocomplete-plus"
 import { CancellationTokenSource } from "vscode-jsonrpc"
-import { ActiveServer } from "../server-manager"
+
+import Convert from "../convert"
 import { PulsarObjectArrayFilterer as ObjectArrayFilterer } from '../fuzzy-matcher'
-import { NullLogger, Logger} from '../logger'
 import {
   CompletionContext,
   CompletionItem,
@@ -11,17 +11,18 @@ import {
   CompletionList,
   CompletionParams,
   CompletionTriggerKind,
-  InsertTextFormat,
   InsertReplaceEdit,
+  InsertTextFormat,
   LanguageClientConnection,
   Range,
   ServerCapabilities,
   TextEdit,
 } from "../languageclient"
+import { Logger,NullLogger} from '../logger'
+import { ActiveServer } from "../server-manager"
+import { SnippetSuggestion, Suggestion, SuggestionBase,TextSuggestion } from "../types/autocomplete-extended"
+import * as Utils from "../utils"
 import ApplyEditAdapter from "./apply-edit-adapter"
-import { Point, Range as AtomRange, TextEditor } from "atom"
-import * as ac from "atom/autocomplete-plus"
-import { Suggestion, TextSuggestion, SnippetSuggestion, SuggestionBase } from "../types/autocomplete-extended"
 
 /**
  * Defines the behavior of suggestion acceptance. Assume you have "cons|ole" in
@@ -56,7 +57,7 @@ type CompletionItemAdjuster = (
 ) => void
 
 class PossiblyResolvedCompletionItem {
-  // eslint-disable-next-line no-useless-constructor, no-empty-function
+   
   constructor(public completionItem: CompletionItem, public isResolved: boolean) {}
 }
 
@@ -215,7 +216,7 @@ export default class AutocompleteAdapter {
         cache.originalBufferPoint,
         request.bufferPosition
       )
-      let result = Array.from(cache.suggestionMap.keys())
+      const result = Array.from(cache.suggestionMap.keys())
       this.logger.log('returning cached!', result)
       return result
     }
@@ -223,7 +224,7 @@ export default class AutocompleteAdapter {
     // Our cached suggestions can't be used, so we'll obtain new ones from the
     // language server.
     this.logger.log('getting completions!')
-    let completions = await Utils.doWithCancellationToken(
+    const completions = await Utils.doWithCancellationToken(
       server.connection,
       this._cancellationTokens,
       (cancellationToken) =>
@@ -255,7 +256,7 @@ export default class AutocompleteAdapter {
       suggestionMap,
     })
 
-    let result = Array.from(suggestionMap.keys())
+    const result = Array.from(suggestionMap.keys())
     return result
   }
 
@@ -335,11 +336,11 @@ export default class AutocompleteAdapter {
     const buffer = request.editor.getBuffer()
     const cursor = request.bufferPosition
     const prefixStartColumn = cursor.column - request.prefix.length
-    let lastCharacterRange = new AtomRange(
+    const lastCharacterRange = new AtomRange(
       cursor,
       cursor.translate([0, -1])
-    );
-    let lastCharacter = buffer.getTextInRange(lastCharacterRange);
+    )
+    const lastCharacter = buffer.getTextInRange(lastCharacterRange)
     for (const triggerChar of triggerChars) {
       if (request.prefix.endsWith(triggerChar)) {
         return [triggerChar, true]

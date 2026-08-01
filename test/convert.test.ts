@@ -1,6 +1,7 @@
-import * as ls from "../lib/languageclient"
+import { FilesystemChange,Point, Range, TextEditor } from "atom"
+
 import Convert from "../lib/convert"
-import { Point, Range, TextEditor, FilesystemChange } from "atom"
+import * as ls from "../lib/languageclient"
 
 let originalPlatform: NodeJS.Platform
 const setProcessPlatform = (platform: any) => {

@@ -1,6 +1,7 @@
-/* eslint-disable import/no-deprecated */
+ 
 import { Range } from "atom"
 import * as path from "path"
+
 import IdeDiagnosticAdapter from "../../lib/adapters/diagnostic-adapter"
 import Convert from "../../lib/convert"
 import * as ls from "../../lib/languageclient"
@@ -31,7 +32,7 @@ describe("IdeDiagnosticAdapter", () => {
       const mockEditor = createFakeEditor(testPath)
 
       // using private method
-      // eslint-disable-next-line dot-notation
+       
       const getDiagnosticCode = adapter["getDiagnosticCode"]
       expect(getDiagnosticCode(mockEditor, new Range([1, 2], [3, 4]), "Test message")).toEqual("test code")
       expect(getDiagnosticCode(mockEditor, new Range([1, 2], [3, 4]), "Test message2")).toBeUndefined()

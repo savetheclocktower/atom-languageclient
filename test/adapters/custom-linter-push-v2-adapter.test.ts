@@ -1,6 +1,7 @@
+import { Point, Range } from "atom"
+
 import LinterPushV2Adapter from "../../lib/adapters/linter-push-v2-adapter"
 import * as ls from "../../lib/languageclient"
-import { Point, Range } from "atom"
 
 const messageUrl = "dummy"
 const messageSolutions: any[] = ["dummy"]

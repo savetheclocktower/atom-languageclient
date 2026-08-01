@@ -1,8 +1,9 @@
-import invariant = require("assert")
+import invariant from "assert"
 import { Point } from "atom"
-import * as ls from "../../lib/languageclient"
+
 import DatatipAdapter from "../../lib/adapters/datatip-adapter"
-import { createSpyConnection, createFakeEditor } from "../helpers.js"
+import * as ls from "../../lib/languageclient"
+import { createFakeEditor,createSpyConnection } from "../helpers.js"
 
 describe("DatatipAdapter", () => {
   let fakeEditor: any

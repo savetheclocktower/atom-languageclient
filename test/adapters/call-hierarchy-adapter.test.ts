@@ -1,8 +1,9 @@
+import type { TextEditor } from "atom"
+import { Point, Range } from "atom"
+
 import * as CallHierarchyAdapter from "../../lib/adapters/call-hierarchy-adapter"
 import * as ls from "../../lib/languageclient"
-import { createSpyConnection, createFakeEditor } from "../helpers.js"
-import { Point, Range } from "atom"
-import type { TextEditor } from "atom"
+import { createFakeEditor,createSpyConnection } from "../helpers.js"
 
 let originalPlatform: NodeJS.Platform
 const setProcessPlatform = (platform: any) => {

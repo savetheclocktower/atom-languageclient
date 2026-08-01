@@ -1,15 +1,15 @@
-import * as rpc from "vscode-jsonrpc"
 import { TextEditor } from "atom"
-import AutoLanguageClient from "../lib/auto-languageclient"
-import { LanguageClientConnection, Disposable, Event } from "../lib/languageclient"
-import { LanguageServerProcess } from "../lib/server-manager"
 import { spawn } from "spawk"
+import * as rpc from "vscode-jsonrpc"
+
+import AutoLanguageClient from "../lib/auto-languageclient"
+import { Disposable, Event,LanguageClientConnection } from "../lib/languageclient"
+import { LanguageServerProcess } from "../lib/server-manager"
 
 function createSpyDisposable(): Disposable {
   return { dispose: jasmine.createSpy("dispose") }
 }
 
-// eslint-disable-next-line @typescript-eslint/ban-types
 function createSpyEvent(): Event<Disposable> {
   return jasmine.createSpy("event").and.returnValue(createSpyDisposable())
 }
@@ -56,15 +56,16 @@ export function createFakeLanguageServerProcess(): LanguageServerProcess {
   spawn("lsp", [], { stdio: "inherit", shell: true })
     .exit(() => sleep(0, 500))
     .stdout("hello from lsp")
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return (require("child_process") as typeof import("child_process")).spawn("lsp", [], {
     stdio: "inherit",
     shell: true,
   })
 }
 
-/* eslint-disable class-methods-use-this */
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+
+
 
 export class FakeAutoLanguageClient extends AutoLanguageClient {
   public getLanguageName() {

@@ -1,26 +1,26 @@
+import { CompositeDisposable, Range, TextBuffer,TextEditor } from "atom"
 import * as linter from "atom/linter"
-import { CommandExecutionAdapter } from "../main"
-import ApplyEditAdapter from "./apply-edit-adapter"
+import type * as atomIde from "atom-ide-base"
+
+import type * as codeActions from "../adapters/code-action-adapter"
+import IntentionsListAdapter from "../adapters/intentions-list-adapter"
 import Convert from "../convert"
+import * as ls from "../languageclient"
 import {
   CodeAction,
   Diagnostic,
-  DiagnosticSeverity,
   DiagnosticRelatedInformation,
+  DiagnosticSeverity,
   LanguageClientConnection,
   PublishDiagnosticsParams,
   WorkspaceEdit
 } from "../languageclient"
+import { CommandExecutionAdapter } from "../main"
 import {
   findAllTextEditorsForPath,
   findFirstTextEditorForPath
 } from '../utils'
-import { CompositeDisposable, TextEditor, Range, TextBuffer } from "atom"
-import IntentionsListAdapter from "../adapters/intentions-list-adapter"
-
-import type * as atomIde from "atom-ide-base"
-import * as ls from "../languageclient"
-import type * as codeActions from "../adapters/code-action-adapter"
+import ApplyEditAdapter from "./apply-edit-adapter"
 
 const SHOULD_LOAD_SOLUTIONS = false
 const SHOULD_PRELOAD_SOLUTIONS_FOR_EACH_LINTER_MESSAGE = false
@@ -101,7 +101,7 @@ export default class LinterPushV2Adapter {
     diagnostics: ls.Diagnostic[]
   ): Promise<(ls.Command | ls.CodeAction)[] | null> {
     if (!this._delegate) return null
-    let codeActions = await this._delegate.getCodeActions(
+    const codeActions = await this._delegate.getCodeActions(
       editor, range, diagnostics
     )
     return codeActions
@@ -110,7 +110,7 @@ export default class LinterPushV2Adapter {
   private _addOnSaveCallback(editor: TextEditor) {
     if (this._editorsWithSaveCallbacks.has(editor)) return
 
-    let disposable = editor.onDidSave(() => {
+    const disposable = editor.onDidSave(() => {
       this.recaptureDiagnosticsForEditor(editor)
     })
 
@@ -121,7 +121,7 @@ export default class LinterPushV2Adapter {
   addIntentionsForLinterMessage(path: string, message: linter.Message, code: string, diag: Diagnostic): void {
     if (!this._intentionsManager) return
 
-    let recapture = () => { this.recaptureDiagnosticsForPath(path) }
+    const recapture = () => { this.recaptureDiagnosticsForPath(path) }
     this._intentionsManager.onLinterMessageAdded(path, message, code, diag, recapture)
   }
 
@@ -137,14 +137,14 @@ export default class LinterPushV2Adapter {
     path: string,
     diag: Diagnostic,
   ): linter.Message | null {
-    let range = Convert.lsRangeToAtomRange(diag.range)
-    let editor = findFirstTextEditorForPath(path)
+    const range = Convert.lsRangeToAtomRange(diag.range)
+    const editor = findFirstTextEditorForPath(path)
 
     if (this._delegate?.shouldIgnoreLinterMessage(diag, editor ?? undefined, range)) {
       return null
     }
 
-    let code = diag.code ? String(diag.code) : null
+    const code = diag.code ? String(diag.code) : null
 
     let linterMessage = lsDiagnosticToV2Message(path, diag)
 
@@ -242,25 +242,25 @@ export default class LinterPushV2Adapter {
     // (b) We want to recapture diagnostics when the buffer is clean. This
     //     makes it possible for an IDE package to, say, ignore certain
     //     messages when the buffer is dirty but not when it’s clean.
-    let textEditors = findAllTextEditorsForPath(path)
+    const textEditors = findAllTextEditorsForPath(path)
 
-    for (let editor of textEditors) {
+    for (const editor of textEditors) {
       this._lastDiagnosticsParamsByEditor.set(editor, params)
       this._addOnSaveCallback(editor)
       this._intentionsManager?.clearLinterIntentions(editor)
     }
-    let textBuffer = textEditors[0]?.getBuffer()
+    const textBuffer = textEditors[0]?.getBuffer()
 
     const codeMap = new Map<string, Diagnostic>()
     const diagnosticMap = new Map<string, linter.Message>()
 
-    let messages: linter.Message[] = []
-    let messageLimit = this._delegate?.getLinterMessageLimitForBuffer(textBuffer) ?? Infinity
+    const messages: linter.Message[] = []
+    const messageLimit = this._delegate?.getLinterMessageLimitForBuffer(textBuffer) ?? Infinity
 
-    let retainedDiagnostics: Diagnostic[] = []
+    const retainedDiagnostics: Diagnostic[] = []
     let codeActionRange: Range | null = null
 
-    for (let diagnostic of params.diagnostics) {
+    for (const diagnostic of params.diagnostics) {
       // Stop once we've reached the configured upper limit for messages. We'll
       // send what we have and the rest will have to wait until some of the
       // earlier messages are addressed by the user.
@@ -270,11 +270,11 @@ export default class LinterPushV2Adapter {
       // completely.
       if (messages.length >= messageLimit) break
 
-      let linterMessage = this.transformOrIgnoreDiagnosticMessage(
+      const linterMessage = this.transformOrIgnoreDiagnosticMessage(
         path, diagnostic
       )
       if (!linterMessage) continue
-      let { location: { position: range } } = linterMessage
+      const { location: { position: range } } = linterMessage
       if (codeActionRange === null) {
         codeActionRange = range
       } else {
@@ -296,23 +296,23 @@ export default class LinterPushV2Adapter {
         (results) => {
           if (!results) return
 
-          for (let result of results) {
+          for (const result of results) {
             if (!CodeAction.is(result)) continue
             if (!result.diagnostics) continue
 
-            let linterMessages = result.diagnostics.map(
+            const linterMessages = result.diagnostics.map(
               diag => diagnosticMap.get(getDiagnosticKey(diag))
             ).filter((msg): msg is linter.Message => msg !== undefined)
             if (linterMessages.length === 0) continue
 
-            let solution = convertCodeActionToLinterMessageSolution(
+            const solution = convertCodeActionToLinterMessageSolution(
               linterMessages[0].location.position,
               result,
               this._connection
             )
             if (!solution) continue
 
-            for (let message of linterMessages) {
+            for (const message of linterMessages) {
               if (!message || message.solutions instanceof Promise) continue
 
               // This is a hack, but it works. In theory, `linter` allows for
@@ -342,8 +342,8 @@ export default class LinterPushV2Adapter {
    * @param path The path to the file.
    */
   public recaptureDiagnosticsForPath(path: string): void {
-    let editors = findAllTextEditorsForPath(path)
-    for (let editor of editors) {
+    const editors = findAllTextEditorsForPath(path)
+    for (const editor of editors) {
       this.recaptureDiagnosticsForEditor(editor)
     }
   }
@@ -357,7 +357,7 @@ export default class LinterPushV2Adapter {
    * @param editor The path to the editor.
    */
   public recaptureDiagnosticsForEditor(editor: TextEditor): void {
-    let lastParams = this._lastDiagnosticsParamsByEditor.get(editor)
+    const lastParams = this._lastDiagnosticsParamsByEditor.get(editor)
     if (!lastParams) return
     setImmediate(() => {
       if (!lastParams) return
@@ -630,8 +630,8 @@ function getMessageKey(message: linter.Message): string {
  * @returns A unique key.
  */
 function getDiagnosticKey(diagnostic: Diagnostic): string {
-  let range = Convert.lsRangeToAtomRange(diagnostic.range)
-  let { severity = '', code = '', message } = diagnostic
+  const range = Convert.lsRangeToAtomRange(diagnostic.range)
+  const { severity = '', code = '', message } = diagnostic
   return `${message}:${severity}:${code}:${range.toString()}`
 }
 
@@ -666,11 +666,11 @@ function convertCodeActionsToLinterMessageSolutions(
   actions: (ls.Command | ls.CodeAction)[],
   connection: LanguageClientConnection
 ): LinterMessageSolution[] {
-  let results: LinterMessageSolution[] = []
+  const results: LinterMessageSolution[] = []
 
-  for (let action of actions) {
+  for (const action of actions) {
     if (ls.Command.is(action)) continue
-    let solution = convertCodeActionToLinterMessageSolution(
+    const solution = convertCodeActionToLinterMessageSolution(
       range, action, connection)
     if (solution) results.push(solution)
   }
@@ -698,13 +698,13 @@ function commandActionToCallbackSolution(
   action: ls.CodeAction,
   connection: LanguageClientConnection
 ): linter.CallbackSolution | null {
-  let { command: outerCommand, title } = action
+  const { command: outerCommand, title } = action
   if (!outerCommand) return null
 
-  let { command, arguments: args } = outerCommand
+  const { command, arguments: args } = outerCommand
   if (!command || !args) return null
 
-  let callback = () => {
+  const callback = () => {
     CommandExecutionAdapter.executeCommand(connection, command, args)
   }
 
@@ -718,14 +718,14 @@ function commandActionToCallbackSolution(
 function callbackToApplyWorkspaceEdits(
   edits: ls.WorkspaceEdit[]
 ): linter.CallbackSolution['apply'] | null {
-  let workspaceEdits: ls.WorkspaceEdit[] = []
-  for (let arg of edits) {
+  const workspaceEdits: ls.WorkspaceEdit[] = []
+  for (const arg of edits) {
     if (!WorkspaceEdit.is(arg)) continue
     workspaceEdits.push(arg)
   }
 
   return () => {
-    for (let e of workspaceEdits) {
+    for (const e of workspaceEdits) {
       ApplyEditAdapter.apply(e)
     }
   }
@@ -735,15 +735,15 @@ function quickfixActionToCallbackSolution(
   range: Range,
   action: ls.CodeAction
 ): linter.CallbackSolution | null {
-  let { command, edit, title } = action
+  const { command, edit, title } = action
 
   // Quoth the spec: "If a code action provides a edit and a command, first the
   // edit is executed and then the command."
-  let edits: ls.WorkspaceEdit[] = []
+  const edits: ls.WorkspaceEdit[] = []
   if (edit) edits.push(edit)
   if (command) edits.push(...(command.arguments as ls.WorkspaceEdit[]))
 
-  let callback = callbackToApplyWorkspaceEdits(edits)
+  const callback = callbackToApplyWorkspaceEdits(edits)
   if (!callback) return null
 
   return {

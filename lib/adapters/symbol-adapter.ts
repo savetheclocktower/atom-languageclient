@@ -1,5 +1,6 @@
 import { Point, TextEditor } from 'atom'
 import { CancellationTokenSource } from 'vscode-jsonrpc'
+
 import Convert from '../convert'
 import {
   DocumentSymbol,
@@ -168,7 +169,7 @@ export default class SymbolAdapter {
   ): Promise<boolean | number> {
     if (server === null) return false
 
-    let {
+    const {
       workspaceSymbolProvider,
       documentSymbolProvider,
       referencesProvider
@@ -204,8 +205,8 @@ export default class SymbolAdapter {
   ): Promise<SymbolEntry[]> {
     if (server === null) return []
 
-    let editor: TextEditor = meta.editor
-    let connection = server.connection
+    const editor: TextEditor = meta.editor
+    const connection = server.connection
 
     let query = meta.query ??
       editor.getLastSelection()?.getText() ?? ''
@@ -244,17 +245,17 @@ export default class SymbolAdapter {
   ): Promise<SymbolEntry[]> {
     if (server === null) return []
 
-    let editor = meta.editor
-    let connection = server.connection
+    const editor = meta.editor
+    const connection = server.connection
 
-    let query = meta.query || (editor.getLastSelection()?.getText() ||
+    const query = meta.query || (editor.getLastSelection()?.getText() ||
       editor.getWordUnderCursor() || null)
 
     if (query === null) return []
 
-    let position = meta.range?.start ?? editor.getLastCursor().getBufferPosition()
+    const position = meta.range?.start ?? editor.getLastCursor().getBufferPosition()
 
-    let params = Convert.editorToTextDocumentPositionParams(editor, position)
+    const params = Convert.editorToTextDocumentPositionParams(editor, position)
     let results = await connection.gotoDefinition(params)
 
     if (results === null) return []
@@ -330,11 +331,11 @@ export default class SymbolAdapter {
         if (isBareUri(symbol)) continue
 
         if (DocumentSymbol.is(symbol)) {
-          let tag = symbolKindToTag(symbol.kind)
+          const tag = symbolKindToTag(symbol.kind)
           const range = Convert.lsRangeToAtomRange(symbol.selectionRange)
           const position = range.start
 
-          let result = {
+          const result = {
             name: symbol.name,
             position,
             range,
@@ -347,10 +348,10 @@ export default class SymbolAdapter {
             processSymbols(symbol.children)
           }
         } else if (Location.is(symbol)) {
-          let range = symbol.range
-          let position = Convert.positionToPoint(range.start)
-          let atomRange = Convert.lsRangeToAtomRange(range)
-          let result = {
+          const range = symbol.range
+          const position = Convert.positionToPoint(range.start)
+          const atomRange = Convert.lsRangeToAtomRange(range)
+          const result = {
             name: name ?? 'Location',
             position,
             path: Convert.uriToPath(symbol.uri),
@@ -358,11 +359,11 @@ export default class SymbolAdapter {
           }
           results.push(result)
         } else if (LocationLink.is(symbol)) {
-          let range = symbol.targetRange
-          let position = Convert.positionToPoint(range.start)
-          let atomRange = Convert.lsRangeToAtomRange(range)
+          const range = symbol.targetRange
+          const position = Convert.positionToPoint(range.start)
+          const atomRange = Convert.lsRangeToAtomRange(range)
 
-          let result = {
+          const result = {
             name: name ?? 'Location',
             position,
             path: Convert.uriToPath(symbol.targetUri),
@@ -371,13 +372,13 @@ export default class SymbolAdapter {
 
           results.push(result)
         } else if ('location' in symbol && 'range' in symbol.location) {
-          let range = symbol.location.range
-          let position = Convert.positionToPoint(range.start)
-          let atomRange = Convert.lsRangeToAtomRange(range)
-          let tag = symbolKindToTag(symbol.kind)
-          let context = symbol.containerName
+          const range = symbol.location.range
+          const position = Convert.positionToPoint(range.start)
+          const atomRange = Convert.lsRangeToAtomRange(range)
+          const tag = symbolKindToTag(symbol.kind)
+          const context = symbol.containerName
 
-          let result = {
+          const result = {
             name: symbol.name,
             position,
             path: Convert.uriToPath(symbol.location.uri),
@@ -396,8 +397,8 @@ export default class SymbolAdapter {
     // TODO: We're sorting these by buffer position before the consumer sees
     // them, but we might want to leave that task to the consumer.
     results.sort((a, b) => {
-      let pointA = a.position ?? a.range?.start
-      let pointB = b.position ?? b.range?.start
+      const pointA = a.position ?? a.range?.start
+      const pointB = b.position ?? b.range?.start
       if (!pointA) return 1
       if (!pointB) return -1
       return pointA.compare(pointB)
@@ -407,7 +408,7 @@ export default class SymbolAdapter {
     if (!this._delegate?.shouldIgnoreSymbol) {
       filteredResults = results
     } else {
-      for (let result of results) {
+      for (const result of results) {
         if (this._delegate?.shouldIgnoreSymbol(result, editor, meta))
           continue
         filteredResults.push(result)

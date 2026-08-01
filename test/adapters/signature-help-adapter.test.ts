@@ -1,4 +1,5 @@
 import { Disposable, Point } from "atom"
+
 import SignatureHelpAdapter from "../../lib/adapters/signature-help-adapter"
 import { createFakeEditor, createSpyConnection } from "../helpers"
 

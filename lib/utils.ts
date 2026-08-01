@@ -1,6 +1,6 @@
-import { join, resolve } from "path"
+import { BufferScanResult,Grammar, Point, Range, TextBuffer, TextEditor } from "atom"
 import { existsSync } from "fs"
-import { Grammar, Point, TextBuffer, TextEditor, Range, BufferScanResult } from "atom"
+import { join, resolve } from "path"
 import { CancellationToken, CancellationTokenSource } from "vscode-jsonrpc"
 
 export type ReportBusyWhile = <T>(title: string, f: () => Promise<T>) => Promise<T>
@@ -131,10 +131,10 @@ function isTextEditor(thing: any): thing is TextEditor {
  * @returns An array of {@link TextEditor}s.
  */
 export function findAllTextEditorsForPath(path: string): TextEditor[] {
-  let panes = atom.workspace.getPanes()
-  let results: TextEditor[] = []
-  for (let pane of panes) {
-    for (let item of pane.getItems()) {
+  const panes = atom.workspace.getPanes()
+  const results: TextEditor[] = []
+  for (const pane of panes) {
+    for (const item of pane.getItems()) {
       if (!isTextEditor(item)) continue
       if (item.getPath() === path) {
         results.push(item)
@@ -150,9 +150,9 @@ export function findAllTextEditorsForPath(path: string): TextEditor[] {
  * @returns A {@link TextEditor}.
  */
 export function findFirstTextEditorForPath(path: string): TextEditor | undefined {
-  let panes = atom.workspace.getPanes()
-  for (let pane of panes) {
-    for (let item of pane.getItems()) {
+  const panes = atom.workspace.getPanes()
+  for (const pane of panes) {
+    for (const item of pane.getItems()) {
       if (!isTextEditor(item)) continue
       if (item.getPath() === path) {
         return item
@@ -212,7 +212,7 @@ const LANGUAGE_IDS: Record<string, string> = {
 
 // Given a grammar, return its language identifier as expected by the LSP spec.
 export function getLanguageIdFromGrammar(grammar: Grammar): string | null {
-  let scopeName = grammar.scopeName
+  const scopeName = grammar.scopeName
   if (scopeName in LANGUAGE_IDS) {
     return LANGUAGE_IDS[scopeName]
   }
@@ -221,7 +221,7 @@ export function getLanguageIdFromGrammar(grammar: Grammar): string | null {
 
 // Given an editor, return the language identifier of the editor’s grammar as expected by the LSP spec.
 export function getLanguageIdFromEditor(editor: TextEditor): string | null {
-  let grammar = editor?.getGrammar()
+  const grammar = editor?.getGrammar()
   if (!grammar) return null
   return getLanguageIdFromGrammar(grammar)
 }

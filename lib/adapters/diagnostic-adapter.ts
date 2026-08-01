@@ -1,9 +1,10 @@
-import * as atomIde from "atom-ide-base"
 import * as atom from "atom"
-import * as ls from "../languageclient"
+import * as atomIde from "atom-ide-base"
+
 import Convert from "../convert"
-import LinterPushV2Adapter from "./linter-push-v2-adapter"
+import * as ls from "../languageclient"
 import { DiagnosticSeverity } from "../languageclient"
+import LinterPushV2Adapter from "./linter-push-v2-adapter"
 
 /** @deprecated Use Linter V2 service */
 export type DiagnosticCode = number | string
@@ -25,7 +26,7 @@ export default class IdeDiagnosticAdapter extends LinterPushV2Adapter {
     const codeMap = new Map()
     const messages = params.diagnostics.map((d) => {
       const linterMessage = this.diagnosticToV2Message(path, d)
-      let key = getCodeKey(
+      const key = getCodeKey(
         linterMessage.location.position,
         Convert.diagnosticMessageToString(d.message)
       )

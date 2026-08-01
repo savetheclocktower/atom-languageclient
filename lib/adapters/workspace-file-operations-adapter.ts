@@ -1,4 +1,7 @@
 import { Disposable } from "atom"
+import * as FS from 'fs/promises'
+// import * as Path from 'path'
+import minimatch from 'minimatch'
 import {
   CreateFilesParams,
   DeleteFilesParams,
@@ -9,11 +12,9 @@ import {
   ServerCapabilities,
   WorkspaceEdit
 } from "vscode-languageserver-protocol"
+
 import Convert from "../convert"
 import { LanguageClientConnection } from "../languageclient"
-import * as FS from 'fs/promises'
-// import * as Path from 'path'
-import minimatch from 'minimatch'
 import ApplyEditAdapter from "./apply-edit-adapter"
 
 type FileOperationFilter = FileOperationRegistrationOptions['filters'][number];
@@ -68,7 +69,7 @@ export default class WorkspaceFileOperationsAdapter {
    * @returns A boolean indicating whether this adapter can adapt the server.
    */
   static canAdapt(serverCapabilities: ServerCapabilities | undefined): boolean {
-    let fileOps = serverCapabilities?.workspace?.fileOperations
+    const fileOps = serverCapabilities?.workspace?.fileOperations
     if (fileOps == null) return false
     return typeof fileOps === 'object'
   }
@@ -140,9 +141,9 @@ export default class WorkspaceFileOperationsAdapter {
     // amount of time; the LSP spec allows a client to ignore a server if it's
     // too slow to process this request.
     await handle.hold(async () => {
-      let filteredPaths = await this._filter(this._capabilities!.willCreate, paths)
-      let params = buildCreateOrDeleteFilesParams(filteredPaths)
-      let result = await this._connection.willCreateFiles(params)
+      const filteredPaths = await this._filter(this._capabilities!.willCreate, paths)
+      const params = buildCreateOrDeleteFilesParams(filteredPaths)
+      const result = await this._connection.willCreateFiles(params)
       if (handle.aborted) return
       await this._handleResult(result)
     })
@@ -161,9 +162,9 @@ export default class WorkspaceFileOperationsAdapter {
     // amount of time; the LSP spec allows a client to ignore a server if it's
     // too slow to process this request.
     await handle.hold(async () => {
-      let filteredPaths = await this._filter(this._capabilities!.willRename, paths, 'initialPath')
-      let params = buildRenameFilesParams(filteredPaths)
-      let result = await this._connection.willRenameFiles(params)
+      const filteredPaths = await this._filter(this._capabilities!.willRename, paths, 'initialPath')
+      const params = buildRenameFilesParams(filteredPaths)
+      const result = await this._connection.willRenameFiles(params)
       if (handle.aborted) return
       await this._handleResult(result)
     })
@@ -181,9 +182,9 @@ export default class WorkspaceFileOperationsAdapter {
     // amount of time; the LSP spec allows a client to ignore a server if it's
     // too slow to process this request.
     await handle.hold(async () => {
-      let filteredPaths = await this._filter(this._capabilities!.willDelete, paths)
-      let params = buildCreateOrDeleteFilesParams(filteredPaths)
-      let result = await this._connection.willDeleteFiles(params)
+      const filteredPaths = await this._filter(this._capabilities!.willDelete, paths)
+      const params = buildCreateOrDeleteFilesParams(filteredPaths)
+      const result = await this._connection.willDeleteFiles(params)
       if (handle.aborted) return
       await this._handleResult(result)
     })
@@ -194,8 +195,8 @@ export default class WorkspaceFileOperationsAdapter {
    * @param paths An {Array} of paths that were created.
    */
   async didCreateFiles(paths: string[]) {
-    let filteredPaths = await this._filter(this._capabilities!.didCreate, paths)
-    let params = buildCreateOrDeleteFilesParams(filteredPaths)
+    const filteredPaths = await this._filter(this._capabilities!.didCreate, paths)
+    const params = buildCreateOrDeleteFilesParams(filteredPaths)
     return this._connection.didCreateFiles(params)
   }
 
@@ -205,8 +206,8 @@ export default class WorkspaceFileOperationsAdapter {
    *   file paths of each operation in the batch.
    */
   async didRenameFiles(paths: MoveAction[]) {
-    let filteredPaths = await this._filter(this._capabilities!.didRename, paths, 'newPath')
-    let params = buildRenameFilesParams(filteredPaths)
+    const filteredPaths = await this._filter(this._capabilities!.didRename, paths, 'newPath')
+    const params = buildRenameFilesParams(filteredPaths)
     return this._connection.didRenameFiles(params)
   }
 
@@ -215,8 +216,8 @@ export default class WorkspaceFileOperationsAdapter {
    * @param paths An {Array} of paths that were deleted.
    */
   async didDeleteFiles(paths: string[]) {
-    let filteredPaths = await this._filter(this._capabilities!.didDelete, paths)
-    let params = buildCreateOrDeleteFilesParams(filteredPaths)
+    const filteredPaths = await this._filter(this._capabilities!.didDelete, paths)
+    const params = buildCreateOrDeleteFilesParams(filteredPaths)
     return this._connection.didDeleteFiles(params)
   }
 
@@ -238,7 +239,7 @@ export default class WorkspaceFileOperationsAdapter {
   private async _filter(capability: FileOperationRegistrationOptions | undefined, items: Array<string>) : Promise<Array<string>>
   private async _filter(capability: FileOperationRegistrationOptions | undefined, items: Array<MoveAction>, property: string) : Promise<Array<MoveAction>>
   private async _filter(capability: FileOperationRegistrationOptions | undefined, items: Array<string | MoveAction>, property?: string) {
-    let filters = capability?.filters
+    const filters = capability?.filters
 
     if (!filters) return items
 
@@ -247,7 +248,7 @@ export default class WorkspaceFileOperationsAdapter {
       if (typeof item === 'string') {
         return await pathMatchesFilters(item, filters)
       } else {
-        let pathValue = property === 'initialPath' ? item.initialPath : item.newPath
+        const pathValue = property === 'initialPath' ? item.initialPath : item.newPath
         return await pathMatchesFilters(pathValue, filters)
       }
     })
@@ -255,21 +256,21 @@ export default class WorkspaceFileOperationsAdapter {
 }
 
 async function getTypeForFilePath(filePath: string): Promise<FileOperationPatternKind | null> {
-  let stat = await FS.lstat(filePath)
+  const stat = await FS.lstat(filePath)
   if (stat.isDirectory()) return 'folder'
   if (stat.isFile()) return 'file'
   return null
 }
 
 function pathMatchesGlob(filePath: string, glob: string) {
-  let [projectPath, relativePath] = atom.project.relativizePath(filePath)
+  const [projectPath, relativePath] = atom.project.relativizePath(filePath)
   // If this file somehow isn't part of the project, ignore it.
   if (!projectPath) return false
   return minimatch(relativePath, glob)
 }
 
 async function pathMatchesFilters(filePath: string, filters: FileOperationFilter[]) {
-  let type = await getTypeForFilePath(filePath)
+  const type = await getTypeForFilePath(filePath)
   if (!type) return false
 
   // A total absence of filters means that we pass.
@@ -278,7 +279,7 @@ async function pathMatchesFilters(filePath: string, filters: FileOperationFilter
   // But if any filters are specified, we need to pass at least one. Hence
   // we'll try this path against each specified filter and stop after the first
   // match.
-  for (let filter of filters) {
+  for (const filter of filters) {
     // If a filter specifies a scheme, bail early if it doesn't match this
     // path.
     if (filter.scheme && type !== filter.scheme) {
@@ -298,12 +299,12 @@ async function pathMatchesFilters(filePath: string, filters: FileOperationFilter
 }
 
 function buildCreateOrDeleteFilesParams(paths: string[]): CreateFilesParams | DeleteFilesParams {
-  let files = paths.map(p => ({ uri: Convert.pathToUri(p) }))
+  const files = paths.map(p => ({ uri: Convert.pathToUri(p) }))
   return { files }
 }
 
 function buildRenameFilesParams(paths: MoveAction[]): RenameFilesParams {
-  let files = paths.map(({ initialPath, newPath }) => {
+  const files = paths.map(({ initialPath, newPath }) => {
     return {
       oldUri: Convert.pathToUri(initialPath),
       newUri: Convert.pathToUri(newPath)

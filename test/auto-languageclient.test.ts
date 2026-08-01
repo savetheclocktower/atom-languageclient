@@ -1,14 +1,15 @@
 import { TextEditor } from "atom"
+import { dirname, join } from "path"
+
 import AutoLanguageClient from "../lib/auto-languageclient"
 import {
-  projectPathToWorkspaceFolder,
-  ServerManager,
   ActiveServer,
   considerAdditionalPath,
   normalizePath,
+  projectPathToWorkspaceFolder,
+  ServerManager,
 } from "../lib/server-manager"
 import { FakeAutoLanguageClient } from "./helpers"
-import { dirname, join } from "path"
 
 function mockEditor(uri: string, scopeName: string): any {
   return {
@@ -28,7 +29,7 @@ function setupClient() {
 }
 
 function setupServerManager(client = setupClient()) {
-  /* eslint-disable-next-line dot-notation */
+   
   const serverManager = client["_serverManager"]
   return serverManager
 }
@@ -42,10 +43,10 @@ describe("AutoLanguageClient", () => {
       // "returns null when a single file is open"
 
       let textEditor = (await atom.workspace.open(__filename)) as TextEditor
-      /* eslint-disable dot-notation */
+       
       expect(client["determineProjectPath"](textEditor)).toBeNull()
       expect(serverManager["_determineProjectPath"](textEditor)).toBeNull()
-      /* eslint-enable dot-notation */
+       
       textEditor.destroy()
 
       // "returns the project path when a file of that project is open"
@@ -56,10 +57,10 @@ describe("AutoLanguageClient", () => {
       await serverManager.startServer(projectPath)
 
       textEditor = (await atom.workspace.open(__filename)) as TextEditor
-      /* eslint-disable dot-notation */
+       
       expect(client["determineProjectPath"](textEditor)).toBe(normalizePath(projectPath))
       expect(serverManager["_determineProjectPath"](textEditor)).toBe(normalizePath(projectPath))
-      /* eslint-enable dot-notation */
+       
       textEditor.destroy()
 
       // "returns the project path when an external file is open and it is not in additional paths"
@@ -72,10 +73,10 @@ describe("AutoLanguageClient", () => {
       await serverManager.startServer(projectPath)
 
       textEditor = (await atom.workspace.open(externalFile)) as TextEditor
-      /* eslint-disable dot-notation */
+       
       expect(client["determineProjectPath"](textEditor)).toBeNull()
       expect(serverManager["_determineProjectPath"](textEditor)).toBeNull()
-      /* eslint-enable dot-notation */
+       
       textEditor.destroy()
 
       // "returns the project path when an external file is open and it is in additional paths"
@@ -88,10 +89,10 @@ describe("AutoLanguageClient", () => {
       expect(server.additionalPaths?.has(externalDir)).toBeTrue()
 
       textEditor = (await atom.workspace.open(externalFile)) as TextEditor
-      /* eslint-disable dot-notation */
+       
       expect(client["determineProjectPath"](textEditor)).toBe(normalizePath(projectPath))
       expect(serverManager["_determineProjectPath"](textEditor)).toBe(normalizePath(projectPath))
-      /* eslint-enable dot-notation */
+       
       textEditor.destroy()
     })
   })
@@ -176,7 +177,7 @@ describe("AutoLanguageClient", () => {
   })
 
   describe("shouldSyncForEditor", () => {
-    /* eslint-disable class-methods-use-this */
+     
     class CustomAutoLanguageClient extends AutoLanguageClient {
       public getLanguageName() {
         return "Java"
@@ -185,7 +186,7 @@ describe("AutoLanguageClient", () => {
         return ["Java", "Python"]
       }
     }
-    /* eslint-enable class-methods-use-this */
+     
 
     const client = new CustomAutoLanguageClient()
 

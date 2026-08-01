@@ -1,9 +1,10 @@
-import Convert from "./convert"
-import * as path from "path"
-import * as ls from "./languageclient"
-import { ChildProcess } from "child_process"
-import { Logger } from "./logger"
 import { CompositeDisposable, FilesystemChangeEvent, TextEditor } from "atom"
+import { ChildProcess } from "child_process"
+import * as path from "path"
+
+import Convert from "./convert"
+import * as ls from "./languageclient"
+import { Logger } from "./logger"
 import { ReportBusyWhile } from "./utils"
 
 export type MinimalLanguageServerProcess = Pick<ChildProcess, "stdin" | "stdout" | "stderr" | "pid" | "kill" | "on">

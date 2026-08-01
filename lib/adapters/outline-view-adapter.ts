@@ -1,15 +1,16 @@
+import { Point, TextEditor } from "atom"
 import type * as atomIde from "atom-ide-base"
-import Convert from "../convert"
-import * as Utils from "../utils"
 import { CancellationTokenSource } from "vscode-jsonrpc"
+
+import Convert from "../convert"
 import {
+  DocumentSymbol,
   LanguageClientConnection,
-  SymbolKind,
   ServerCapabilities,
   SymbolInformation,
-  DocumentSymbol,
+  SymbolKind,
 } from "../languageclient"
-import { Point, TextEditor } from "atom"
+import * as Utils from "../utils"
 
 /**
  * Public: Adapts the documentSymbolProvider of the language server to the

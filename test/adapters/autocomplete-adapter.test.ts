@@ -1,14 +1,14 @@
-import AutoCompleteAdapter, { grammarScopeToAutoCompleteSelector } from "../../lib/adapters/autocomplete-adapter"
-import { ActiveServer } from "../../lib/server-manager.js"
-import * as ls from "../../lib/languageclient"
 import { CompositeDisposable, Point, TextEditor } from "atom"
 import * as ac from "atom/autocomplete-plus"
-
-import { createSpyConnection, createFakeEditor } from "../helpers.js"
-import { TextSuggestion, SnippetSuggestion } from "../../lib/types/autocomplete-extended"
-import { CompletionItem, Range } from "../../lib/languageclient"
 import { dirname, join } from "path"
+
+import AutoCompleteAdapter, { grammarScopeToAutoCompleteSelector } from "../../lib/adapters/autocomplete-adapter"
+import * as ls from "../../lib/languageclient"
+import { CompletionItem, Range } from "../../lib/languageclient"
 import { Convert } from "../../lib/main"
+import { ActiveServer } from "../../lib/server-manager.js"
+import { SnippetSuggestion,TextSuggestion } from "../../lib/types/autocomplete-extended"
+import { createFakeEditor,createSpyConnection } from "../helpers.js"
 
 function createRequest({
   prefix = "",

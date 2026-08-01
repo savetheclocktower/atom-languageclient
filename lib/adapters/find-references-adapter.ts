@@ -1,7 +1,8 @@
-import type * as atomIde from "atom-ide-base"
-import Convert from "../convert"
 import { Point, TextEditor } from "atom"
-import { LanguageClientConnection, Location, ServerCapabilities, ReferenceParams } from "../languageclient"
+import type * as atomIde from "atom-ide-base"
+
+import Convert from "../convert"
+import { LanguageClientConnection, Location, ReferenceParams,ServerCapabilities } from "../languageclient"
 
 /**
  * Public: Adapts the language server definition provider to the Atom IDE UI

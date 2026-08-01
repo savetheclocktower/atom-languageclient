@@ -1,11 +1,12 @@
 import * as ls from "../lib/languageclient"
-import { createSpyConnection } from "./helpers.js"
 import { NullLogger } from "../lib/logger"
+import { createSpyConnection } from "./helpers.js"
 
 describe("LanguageClientConnection", () => {
   it("listens to the RPC connection it is given", () => {
     const rpc = createSpyConnection()
 
+    // eslint-disable-next-line no-new
     new ls.LanguageClientConnection(rpc, new NullLogger())
     expect((rpc as any).listen).toHaveBeenCalled()
   })

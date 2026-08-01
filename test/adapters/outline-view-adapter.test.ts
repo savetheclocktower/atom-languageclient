@@ -1,6 +1,7 @@
+import { Point } from "atom"
+
 import OutlineViewAdapter from "../../lib/adapters/outline-view-adapter"
 import * as ls from "../../lib/languageclient"
-import { Point } from "atom"
 
 describe("OutlineViewAdapter", () => {
   const createRange = (a: any, b: any, c: any, d: any) => ({

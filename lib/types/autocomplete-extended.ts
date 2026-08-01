@@ -1,11 +1,12 @@
 // Autocomplete extention (the properties added by atom-languageclient)
 // See this PR: https://github.com/DefinitelyTyped/DefinitelyTyped/pull/51284
 
-import * as ac from "atom/autocomplete-plus"
 import { Range } from 'atom'
+import * as ac from "atom/autocomplete-plus"
 import * as atomIde from 'atom-ide-base'
-import { CompletionItem } from "../languageclient"
+
 import * as ls from "../languageclient"
+import { CompletionItem } from "../languageclient"
 
 /**
  * A direct translation of an {@link ls.TextEdit} — using an Atom-style {@link

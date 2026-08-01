@@ -1,8 +1,8 @@
-import type * as atomIde from "atom-ide-base"
-import assert = require("assert")
-import Convert from "../convert"
-import { ActiveServer } from "../server-manager"
+import assert from "assert"
 import { CompositeDisposable, Point, TextEditor } from "atom"
+import type * as atomIde from "atom-ide-base"
+
+import Convert from "../convert"
 import {
   LanguageClientConnection,
   ServerCapabilities,
@@ -10,6 +10,7 @@ import {
   SignatureHelpContext,
   SignatureHelpTriggerKind
 } from "../languageclient"
+import { ActiveServer } from "../server-manager"
 
 class TimeoutError extends Error {
   name = 'TimeoutError'
@@ -91,7 +92,7 @@ export class SignatureAdapter {
     this._connection = server.connection
     this._capabilities = server.capabilities
 
-    let { triggerCharacters, retriggerCharacters } = this._capabilities.signatureHelpProvider ?? {}
+    const { triggerCharacters, retriggerCharacters } = this._capabilities.signatureHelpProvider ?? {}
 
     if (Array.isArray(triggerCharacters)) {
       this.triggerCharacters = new Set<string>(triggerCharacters)
@@ -111,7 +112,7 @@ export class SignatureAdapter {
     point: Point,
     context?: SignatureHelpContext
   ): Promise<SignatureHelp | null> {
-    let params = {
+    const params = {
       ...Convert.editorToTextDocumentPositionParams(editor, point),
       context: {
         triggerKind: SignatureHelpTriggerKind.TriggerCharacter,
@@ -157,7 +158,7 @@ export default class SignatureHelpAdapter {
       if (Array.isArray(signatureHelpProvider.retriggerCharacters)) {
         // TODO: Should we do this in lieu of proper support for
         // `retriggerCharacters`?
-        for (let char of signatureHelpProvider.retriggerCharacters) {
+        for (const char of signatureHelpProvider.retriggerCharacters) {
           triggerCharacters.add(char)
         }
       }
@@ -175,7 +176,7 @@ export default class SignatureHelpAdapter {
 
   /** Public: Retrieves signature help for a given editor and position. */
   public getSignatureHelp(editor: TextEditor, point: Point): Promise<SignatureHelp | null> {
-    let params = Convert.editorToTextDocumentPositionParams(editor, point)
+    const params = Convert.editorToTextDocumentPositionParams(editor, point)
     return this._connection.signatureHelp(params)
   }
 }

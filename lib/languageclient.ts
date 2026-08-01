@@ -1,7 +1,8 @@
+import { EventEmitter } from "events"
 import * as jsonrpc from "vscode-jsonrpc"
 import * as lsp from "vscode-languageserver-protocol"
-import { EventEmitter } from "events"
-import { NullLogger, Logger } from "./logger"
+
+import { Logger,NullLogger } from "./logger"
 
 export * from "vscode-languageserver-protocol"
 

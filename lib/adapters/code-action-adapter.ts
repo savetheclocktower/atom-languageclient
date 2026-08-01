@@ -1,13 +1,10 @@
-import type * as atomIde from "atom-ide-base"
-import type * as ls from "../languageclient"
+import assert from "assert"
+import { Range, TextEditor } from "atom"
 import * as linter from "atom/linter"
-import LinterPushV2Adapter from "./linter-push-v2-adapter"
-/* eslint-disable import/no-deprecated */
-import IdeDiagnosticAdapter from "./diagnostic-adapter"
-import assert = require("assert")
+import type * as atomIde from "atom-ide-base"
+
 import Convert from "../convert"
-import CommandExecutionAdapter from "./command-execution-adapter"
-import ApplyEditAdapter from "./apply-edit-adapter"
+import type * as ls from "../languageclient"
 import {
   CodeAction,
   CodeActionParams,
@@ -17,9 +14,11 @@ import {
   ServerCapabilities,
   WorkspaceEdit,
 } from "../languageclient"
-
-import { Range, TextEditor } from "atom"
+import ApplyEditAdapter from "./apply-edit-adapter"
+import CommandExecutionAdapter from "./command-execution-adapter"
+import IdeDiagnosticAdapter from "./diagnostic-adapter"
 import type * as intentions from "./intentions-list-adapter"
+import LinterPushV2Adapter from "./linter-push-v2-adapter"
 
 type LinterMessageParams = linter.Message[] | atomIde.Diagnostic[] | Diagnostic[]
 type ActionFilterer = (actions: (Command | CodeAction)[] | null) => (Command | CodeAction)[] | null
@@ -74,7 +73,7 @@ export default class CodeActionAdapter {
     onApply: (action: Command | CodeAction) => Promise<boolean> = () => Promise.resolve(true),
     kinds?: string[]
   ): Promise<atomIde.CodeAction[]> {
-    let actions = await CodeActionAdapter.getLsCodeActions(
+    const actions = await CodeActionAdapter.getLsCodeActions(
       connection,
       serverCapabilities,
       linterAdapter,
@@ -192,7 +191,7 @@ function createCodeActionParams(
     }
   }
 
-  let context: CodeActionParams['context'] = { diagnostics }
+  const context: CodeActionParams['context'] = { diagnostics }
   if (kinds && kinds.length > 0) context.only = kinds
 
   return {
@@ -238,10 +237,10 @@ function commandActionToCallback(
   action: ls.CodeAction,
   connection: LanguageClientConnection
 ): intentions.Intention['selected'] | null {
-  let { command: outerCommand } = action
+  const { command: outerCommand } = action
   if (!outerCommand) return null
 
-  let { command, arguments: args } = outerCommand
+  const { command, arguments: args } = outerCommand
   if (!command || !args) return null
 
   return () => {
@@ -252,17 +251,17 @@ function commandActionToCallback(
 function editActionToCallback(
   action: ls.CodeAction
 ): intentions.Intention['selected'] | null {
-  let { command, edit } = action
+  const { command, edit } = action
   if (!command && !edit) return null
 
-  let edits: ls.WorkspaceEdit[] = []
+  const edits: ls.WorkspaceEdit[] = []
   if (edit) edits.push(edit)
   if (command) edits.push(
     ...(command.arguments as ls.WorkspaceEdit[])
   )
 
   return () => {
-    let promises = edits.map(e => {
+    const promises = edits.map(e => {
       return ApplyEditAdapter.apply(e)
     })
     return Promise.all(promises)

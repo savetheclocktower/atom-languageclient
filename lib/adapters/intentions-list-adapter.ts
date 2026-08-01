@@ -1,5 +1,6 @@
 import { Point, Range, TextEditor } from 'atom'
 import * as linter from "atom/linter"
+
 import Convert from "../convert"
 import {
   CodeAction,
@@ -48,11 +49,11 @@ export type IntentionsDelegate = {
 
 class RangeMap<T> extends Map<Range, T> {
   getResultsForPoint(point: Point): T[] {
-    let ranges = this.keys()
-    let results = []
-    for (let range of ranges) {
+    const ranges = this.keys()
+    const results = []
+    for (const range of ranges) {
       if (!range.containsPoint(point)) continue
-      let value = this.get(range)
+      const value = this.get(range)
       if (!value) continue
       results.push(value)
     }
@@ -118,10 +119,10 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
     options: GetIntentionsOptions,
     connection: LanguageClientConnection
   ): Promise<Intention[]> {
-    let { bufferPosition, textEditor } = options
-    let intentionsList = this.listsByEditor.get(textEditor)
-    let range = new Range(bufferPosition, bufferPosition)
-    let results = []
+    const { bufferPosition, textEditor } = options
+    const intentionsList = this.listsByEditor.get(textEditor)
+    const range = new Range(bufferPosition, bufferPosition)
+    const results = []
     let codeActionRange
     let diagnostics: Diagnostic[] = []
 
@@ -138,7 +139,7 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
     }
 
     if (!codeActionRange) {
-      let selection = textEditor.getLastSelection()
+      const selection = textEditor.getLastSelection()
       if (!selection.isEmpty()) {
         codeActionRange = selection.getBufferRange()
       } else {
@@ -150,20 +151,20 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
 
     // This is why we store the diagnostics separately; it lets us retrieve
     // them and turn them into code actions in a single batch.
-    let actions = await this.delegate.getCodeActions(
+    const actions = await this.delegate.getCodeActions(
       textEditor,
       codeActionRange,
       diagnostics
     ) ?? []
 
-    let actionTitles = new Set()
-    for (let action of actions) {
+    const actionTitles = new Set()
+    for (const action of actions) {
       if (!CodeAction.is(action)) continue
       // Don't allow more than one action with the same title. There's no way
       // for the user to tell them apart, even if they happen to do different
       // things. The first one wins.
       if (actionTitles.has(action.title)) continue
-      let result = convertCodeActionToIntentionListOption(action, connection)
+      const result = convertCodeActionToIntentionListOption(action, connection)
       if (!result) continue
       actionTitles.add(action.title)
       results.push(result)
@@ -172,9 +173,9 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
     // Even if the server sent no code actions for the given point, the client
     // may want to add its own intentions at the given buffer position.
     if (intentionsList) {
-      let bundles = intentionsList.getLinterMessagesForBufferPosition(bufferPosition)
-      for (let bundle of bundles) {
-        let extraIntentions = this.delegate.getIntentionsForLinterMessage(bundle, textEditor)
+      const bundles = intentionsList.getLinterMessagesForBufferPosition(bufferPosition)
+      for (const bundle of bundles) {
+        const extraIntentions = this.delegate.getIntentionsForLinterMessage(bundle, textEditor)
         if (extraIntentions) results.push(...extraIntentions)
       }
     }
@@ -196,12 +197,12 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
   }
 
   onLinterMessageAdded(path: string, message: linter.Message, code: string, diag: Diagnostic, callback: () => void): void {
-    let { location: { position: range } } = message
-    let bundle = { message, code, path, callback }
+    const { location: { position: range } } = message
+    const bundle = { message, code, path, callback }
 
-    let editors = findAllTextEditorsForPath(path)
-    for (let editor of editors) {
-      let intentionsList = this.findOrCreateEditorIntentionsList(editor)
+    const editors = findAllTextEditorsForPath(path)
+    for (const editor of editors) {
+      const intentionsList = this.findOrCreateEditorIntentionsList(editor)
       intentionsList.add(range, bundle, diag)
     }
   }
@@ -209,8 +210,8 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
 
 function largestRangeForDiagnosticMessages(diagnostics: Diagnostic[]): Range | null {
   let largestRange = null
-  for (let diagnostic of diagnostics) {
-    let range = Convert.lsRangeToAtomRange(diagnostic.range)
+  for (const diagnostic of diagnostics) {
+    const range = Convert.lsRangeToAtomRange(diagnostic.range)
     if (!largestRange) {
       largestRange = range
     } else {

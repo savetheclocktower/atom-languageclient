@@ -1,15 +1,16 @@
+import { Point,Range, TextEditor } from "atom"
 import type * as atomIde from "atom-ide-base"
+
 import Convert from "../convert"
 import {
-  LanguageClientConnection,
   DocumentFormattingParams,
-  DocumentRangeFormattingParams,
   DocumentOnTypeFormattingParams,
+  DocumentRangeFormattingParams,
   FormattingOptions,
+  LanguageClientConnection,
   ServerCapabilities,
   TextEdit
 } from "../languageclient"
-import { TextEditor, Range, Point } from "atom"
 import DocumentSyncAdapter from "./document-sync-adapter"
 
 export type CodeFormatType = 'range' | 'file' | 'onType' | 'onSave'
@@ -88,13 +89,13 @@ export default class CodeFormatAdapter {
     editor: TextEditor,
     documentSyncAdapter?: DocumentSyncAdapter
   ): Promise<atomIde.TextEdit[]> {
-    let params = CodeFormatAdapter.createDocumentFormattingParams(editor)
-    let edits = await this.whileMaintainingDocumentVersion(
+    const params = CodeFormatAdapter.createDocumentFormattingParams(editor)
+    const edits = await this.whileMaintainingDocumentVersion(
       editor,
       async () => await connection.documentFormatting(params),
       documentSyncAdapter
     )
-    let result = Convert.convertLsTextEdits(edits)
+    const result = Convert.convertLsTextEdits(edits)
     return result
   }
 
@@ -135,7 +136,7 @@ export default class CodeFormatAdapter {
     range: Range,
     documentSyncAdapter?: DocumentSyncAdapter
   ): Promise<atomIde.TextEdit[]> {
-    let edits = await this.whileMaintainingDocumentVersion(
+    const edits = await this.whileMaintainingDocumentVersion(
       editor,
       async () => {
         return await connection.documentRangeFormatting(
@@ -285,10 +286,10 @@ export default class CodeFormatAdapter {
   ): Promise<TextEdit[] | null> {
     if (!documentSyncAdapter) return await fn()
 
-    let editorSyncAdapter = documentSyncAdapter.getEditorSyncAdapter(editor)
-    let beforeVersion = editorSyncAdapter?.getVersion() ?? -1
-    let edits = await fn()
-    let afterVersion = editorSyncAdapter?.getVersion() ?? -1
+    const editorSyncAdapter = documentSyncAdapter.getEditorSyncAdapter(editor)
+    const beforeVersion = editorSyncAdapter?.getVersion() ?? -1
+    const edits = await fn()
+    const afterVersion = editorSyncAdapter?.getVersion() ?? -1
     if (beforeVersion !== afterVersion) {
       if (retryCount <= 0) return null
       return await this.whileMaintainingDocumentVersion(

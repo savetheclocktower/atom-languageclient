@@ -1,18 +1,19 @@
+import { BufferStoppedChangingEvent, CompositeDisposable, Disposable, TextChange,TextEditor } from "atom"
+
 import Convert from "../convert"
 import {
-  LanguageClientConnection,
+  DidSaveTextDocumentParams,
   FileChangeType,
+  LanguageClientConnection,
+  ServerCapabilities,
+  TextDocumentContentChangeEvent,
   TextDocumentSaveReason,
   TextDocumentSyncKind,
   TextDocumentSyncOptions,
-  TextDocumentContentChangeEvent,
   VersionedTextDocumentIdentifier,
-  ServerCapabilities,
-  DidSaveTextDocumentParams,
 } from "../languageclient"
-import ApplyEditAdapter from "./apply-edit-adapter"
-import { CompositeDisposable, Disposable, TextEditor, BufferStoppedChangingEvent, TextChange } from "atom"
 import * as Utils from "../utils"
+import ApplyEditAdapter from "./apply-edit-adapter"
 
 /**
  * Public: Synchronizes the documents between Atom and the language server by

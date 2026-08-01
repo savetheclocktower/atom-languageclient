@@ -1,6 +1,7 @@
-import assert = require("assert")
+import assert from "assert"
+import { Point, Range,TextEditor } from "atom"
+
 import Convert from "../convert"
-import { Point, TextEditor, Range } from "atom"
 import { LanguageClientConnection, ServerCapabilities } from "../languageclient"
 
 export default class CodeHighlightAdapter {

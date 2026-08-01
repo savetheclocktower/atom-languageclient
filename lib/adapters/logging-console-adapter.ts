@@ -1,4 +1,5 @@
 import type * as atomIde from "atom-ide-base"
+
 import { LanguageClientConnection, LogMessageParams, MessageType } from "../languageclient"
 
 /**

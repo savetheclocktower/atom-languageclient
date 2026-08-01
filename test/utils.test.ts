@@ -1,8 +1,9 @@
+import { Point } from "atom"
+import * as fs from "fs"
+import { join } from "path"
+
 import * as Utils from "../lib/utils"
 import { createFakeEditor } from "./helpers"
-import { Point } from "atom"
-import { join } from "path"
-import * as fs from "fs"
 
 describe("Utils", () => {
   describe("getWordAtPosition", () => {

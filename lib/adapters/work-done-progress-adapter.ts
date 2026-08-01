@@ -1,3 +1,5 @@
+import { BusyMessage, BusySignalService } from "atom-ide"
+
 import {
   LanguageClientConnection,
   ProgressToken,
@@ -7,7 +9,6 @@ import {
   WorkDoneProgressEnd,
   WorkDoneProgressReport
 } from "../languageclient"
-import { BusyMessage, BusySignalService } from "atom-ide"
 
 const WORK_DONE_PROGRESS_KINDS = Object.freeze(['begin', 'report', 'end'])
 
@@ -35,7 +36,7 @@ export default class WorkDoneProgressAdapter {
       (params) => {
         // `$/progress` is used for lots of things, so only some of these will
         // be relevant to us.
-        let { token, value } = params
+        const { token, value } = params
         // Filter out anything that doesn't have a token we recognize…
         if (!this.JOBS.has(token)) return
         // …and anything that isn't of a kind we expect. (The above condition
@@ -52,6 +53,8 @@ export default class WorkDoneProgressAdapter {
           case 'end':
             this.endWorkDoneProgress(token, value)
             break
+          default:
+            // Do nothing
         }
       }
     )
@@ -68,7 +71,7 @@ export default class WorkDoneProgressAdapter {
     //
     // TODO: The `revealTooltip` option doesn't seem to be working, but I'll
     // leave it in for now.
-    let message = api.reportBusy(`Busy…`, { revealTooltip: true })
+    const message = api.reportBusy(`Busy…`, { revealTooltip: true })
     this.JOBS.set(params.token, message)
   }
 
@@ -79,7 +82,7 @@ export default class WorkDoneProgressAdapter {
   // server says is not cancellable. So it sounds like it always cancels the
   // task in the UI and sometimes cancels the task on the server side.
   static cancelWorkDoneProgress(params: WorkDoneProgressCancelParams) {
-    let message = this.JOBS.get(params.token)
+    const message = this.JOBS.get(params.token)
     if (!message) return
     message.dispose()
     this.JOBS.delete(params.token)
@@ -91,10 +94,10 @@ export default class WorkDoneProgressAdapter {
    * will be shown in the title.
    */
   static beginWorkDoneProgress(token: ProgressToken, params: WorkDoneProgressBegin) {
-    let message = this.JOBS.get(token)
+    const message = this.JOBS.get(token)
     if (!message) return
     this.TITLES.set(token, params.title)
-    let newTitle = this.formatMessageFromParams(params.title, params)
+    const newTitle = this.formatMessageFromParams(params.title, params)
     message.setTitle(newTitle)
   }
 
@@ -104,13 +107,13 @@ export default class WorkDoneProgressAdapter {
    * will be shown in the title.
    */
   static updateWorkDoneProgress(token: ProgressToken, params: WorkDoneProgressReport) {
-    let message = this.JOBS.get(token)
+    const message = this.JOBS.get(token)
     if (!message) return
     // Since `title` is mandatory in the spec, we are practically guaranteed to
     // find a title here, but we should fall back to an empty string just to
     // make everyone happy.
-    let title = this.TITLES.get(token) ?? ''
-    let newTitle = this.formatMessageFromParams(title, params)
+    const title = this.TITLES.get(token) ?? ''
+    const newTitle = this.formatMessageFromParams(title, params)
     if (newTitle) {
       message.setTitle(newTitle)
     }
@@ -122,13 +125,13 @@ export default class WorkDoneProgressAdapter {
    * applicable), then marking the message as done.
    */
   static endWorkDoneProgress(token: ProgressToken, params: WorkDoneProgressEnd) {
-    let message = this.JOBS.get(token)
+    const message = this.JOBS.get(token)
     if (!message) return
     // Since `title` is mandatory in the spec, we are practically guaranteed to
     // find a title here, but we should fall back to an empty string just to
     // make everyone happy.
-    let title = this.TITLES.get(token) ?? ''
-    let newTitle = this.formatMessageFromParams(title, params)
+    const title = this.TITLES.get(token) ?? ''
+    const newTitle = this.formatMessageFromParams(title, params)
     if (newTitle) {
       // Optionally set a final title before finishing the operation; otherwise
       // this will keep the original task title and clear the percentage, if
@@ -143,7 +146,7 @@ export default class WorkDoneProgressAdapter {
   // task's original `title` (required), the most recent `message` (optional),
   // and the most recent percentage (optional).
   private static formatMessageFromParams(title: string, params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd): string {
-    let percentage = 'percentage' in params ? params.percentage : null
+    const percentage = 'percentage' in params ? params.percentage : null
     if (!params.message && !percentage) return title
     let message = params.message ?? ``
     if (percentage) {

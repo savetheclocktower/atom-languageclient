@@ -1,7 +1,8 @@
-import { shell } from "electron"
-import { LanguageClientConnection, ShowDocumentParams, ShowDocumentResult } from "../languageclient"
 import { TextEditor } from "atom"
+import { shell } from "electron"
+
 import Convert from "../convert"
+import { LanguageClientConnection, ShowDocumentParams, ShowDocumentResult } from "../languageclient"
 
 /**
  * Public: Adapts the window/showDocument command to Atom's text editors or

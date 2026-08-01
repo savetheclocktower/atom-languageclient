@@ -87,7 +87,7 @@ export class PulsarObjectArrayFilterer<DataKey extends string | number = string>
   constructor(candidates?: ObjectWithKey<DataKey>[], dataKey?: DataKey) {
     this.#dataKey = dataKey
     if (detectPulsarFuzzyFinder()) {
-      // @ts-ignore Need to update type definition
+      // @ts-expect-error Need to update type definition.
       this.#matcher = atom.ui.fuzzyMatcher.setCandidates([])
     }
     if (candidates && dataKey) {
@@ -106,15 +106,15 @@ export class PulsarObjectArrayFilterer<DataKey extends string | number = string>
   filter(query: string, options: ObjectArrayFilterOptions = {}): ObjectWithKey<DataKey>[] {
     if (!this.#candidates) return []
     if (this.#matcher) {
-      let indices = this.filterIndices(query, options)
-      let results: ObjectWithKey<DataKey>[] = []
-      for (let i of indices) {
+      const indices = this.filterIndices(query, options)
+      const results: ObjectWithKey<DataKey>[] = []
+      for (const i of indices) {
         results.push(this.#candidates[i])
       }
       return results
     } else {
       if (!this.#dataKey || !this.#candidates) return []
-      let results = faFilter<ObjectWithKey<DataKey>, DataKey>(
+      const results = faFilter<ObjectWithKey<DataKey>, DataKey>(
         this.#candidates,
         query as any as ObjectWithKey<DataKey>[DataKey],
         { key: this.#dataKey, maxResults: options.maxResults }
@@ -125,11 +125,11 @@ export class PulsarObjectArrayFilterer<DataKey extends string | number = string>
 
   filterIndices(query: string, options: ObjectArrayFilterOptions = {}): number[] {
     if (this.#matcher) {
-      let results = this.#matcher.match(query, { ...options, algorithm: 'command-t' })
+      const results = this.#matcher.match(query, { ...options, algorithm: 'command-t' })
       return results.map(r => r.id)
     } else {
       if (!this.#dataKey || !this.#candidates) return []
-      let results = faFilter<ObjectWithKey<DataKey>, DataKey>(
+      const results = faFilter<ObjectWithKey<DataKey>, DataKey>(
         this.#candidates,
         query as any as ObjectWithKey<DataKey>[DataKey],
         { key: this.#dataKey, maxResults: options.maxResults }
@@ -143,7 +143,6 @@ function detectPulsarFuzzyFinder() {
   // return false // TEMP
   if (!('atom' in global)) return false
   if (!('ui' in atom)) return false
-  // @ts-ignore Need to update type definition
   if (!('fuzzyMatcher' in atom.ui)) return false
   return true
 }

@@ -1,25 +1,26 @@
-import type * as atomIde from "atom-ide-base"
-import Convert from "../convert"
-import {
-  LanguageClientConnection,
-  ApplyWorkspaceEditParams,
-  ApplyWorkspaceEditResponse,
-  WorkspaceEdit,
-  TextDocumentEdit,
-  CreateFile,
-  RenameFile,
-  DeleteFile,
-  DocumentUri,
-} from "../languageclient"
 import {
   DisplayMarker,
   DisplayMarkerLayer,
   TextBuffer,
   TextEditor
 } from "atom"
+import type * as atomIde from "atom-ide-base"
 import { promises as fsp, Stats } from "fs"
-// @ts-ignore Messed-up types file
+// @ts-expect-error Messed-up types file
 import rimraf from "rimraf"
+
+import Convert from "../convert"
+import {
+  ApplyWorkspaceEditParams,
+  ApplyWorkspaceEditResponse,
+  CreateFile,
+  DeleteFile,
+  DocumentUri,
+  LanguageClientConnection,
+  RenameFile,
+  TextDocumentEdit,
+  WorkspaceEdit,
+} from "../languageclient"
 import DocumentSyncAdapter from "./document-sync-adapter"
 
 // Options to pass to `ApplyEditAdapter.apply`.
@@ -70,17 +71,17 @@ export default class ApplyEditAdapter {
    * checkpoint so that the caller can revert changes if needed.
    */
   public static applyEdits(editor: TextEditor, rawEdits: atomIde.TextEdit[]): number {
-    let buffer = editor.getBuffer()
+    const buffer = editor.getBuffer()
     const checkpoint = buffer.createCheckpoint()
-    let edits: atomIde.TextEdit[] = normalizeTextEdits(rawEdits)
+    const edits: atomIde.TextEdit[] = normalizeTextEdits(rawEdits)
     // TODO: Decide whether to allow a package to spy on `TextEdit`s or
     // alter/override them with an advice method.
     try {
-      let layer = ApplyEditAdapter.findOrCreateMarkerLayerForEditor(editor)
+      const layer = ApplyEditAdapter.findOrCreateMarkerLayerForEditor(editor)
 
-      let markerMap = new Map<atomIde.TextEdit, DisplayMarker>()
-      for (let edit of edits) {
-        let marker = layer.markBufferRange(edit.oldRange)
+      const markerMap = new Map<atomIde.TextEdit, DisplayMarker>()
+      for (const edit of edits) {
+        const marker = layer.markBufferRange(edit.oldRange)
         markerMap.set(edit, marker)
       }
 
@@ -92,7 +93,7 @@ export default class ApplyEditAdapter {
       edits.reduce(
         (previous: atomIde.TextEdit | null, current) => {
           validateEdit(buffer, current, previous)
-          let marker = markerMap.get(current)
+          const marker = markerMap.get(current)
           if (!marker) throw new Error(`Marker missing range!`)
           buffer.setTextInRange(marker.getBufferRange(), current.newText)
           return current
@@ -121,7 +122,7 @@ export default class ApplyEditAdapter {
     rawWorkspaceEdit: WorkspaceEdit,
     { save = 'unmodified' }: ApplyWorkspaceEditOptions = {}
   ): Promise<ApplyWorkspaceEditResponse> {
-    let workspaceEdit = rawWorkspaceEdit;
+    const workspaceEdit = rawWorkspaceEdit
     // TODO: Decide whether to allow a package to spy on `WorkspaceEdit`s or
     // alter/override them with an advice method.
     normalize(workspaceEdit)
@@ -191,7 +192,7 @@ export default class ApplyEditAdapter {
           activateItem: false,
         })) as TextEditor
 
-        let wasModified = editor.isModified()
+        const wasModified = editor.isModified()
         const buffer = editor.getBuffer()
 
         // A language server can give us a `VersionedTextDocumentIdentifier`
@@ -199,9 +200,9 @@ export default class ApplyEditAdapter {
         // it tells us the versions of the documents against which this
         // `WorkspaceEdit` was made.
         if (edit.textDocument.version && this._documentSyncAdapter) {
-          let editorSyncAdapter = this._documentSyncAdapter.getEditorSyncAdapter(editor)
+          const editorSyncAdapter = this._documentSyncAdapter.getEditorSyncAdapter(editor)
           if (editorSyncAdapter) {
-            let versionedTextDocumentIdentifier = editorSyncAdapter.getVersionedTextDocumentIdentifier()
+            const versionedTextDocumentIdentifier = editorSyncAdapter.getVersionedTextDocumentIdentifier()
             if (edit.textDocument.version !== versionedTextDocumentIdentifier.version) {
               throw new Error(`Version mismatch on document: ${edit.textDocument.uri}; expected version ${edit.textDocument.version} but got version ${versionedTextDocumentIdentifier.version}`)
             }
@@ -364,15 +365,15 @@ function normalize(workspaceEdit: WorkspaceEdit): void {
  * the LSP spec describes, but we can't turn genuinely incoherent edit lists
  * into something valid.
  */
-function normalizeTextEdits (edits: atomIde.TextEdit[]) {
-  if (edits.length === 1) return edits;
-  if (!textEditListHasDuplicateRanges(edits)) return edits;
+function normalizeTextEdits(edits: atomIde.TextEdit[]) {
+  if (edits.length === 1) return edits
+  if (!textEditListHasDuplicateRanges(edits)) return edits
 
   // Keys will be string representations of ranges; values will be arrays of
   // strings.
-  let editIndex = new Index<string, string>();
+  const editIndex = new Index<string, string>()
   // Keep track of which ranges we've already seen.
-  let seenRanges = new Set<string>();
+  const seenRanges = new Set<string>()
 
   // This list will hold the first `TextEdit` for each unique `oldRange`. This
   // is how we ensure that ordering is preserved.
@@ -380,27 +381,27 @@ function normalizeTextEdits (edits: atomIde.TextEdit[]) {
   // Whenever we skip adding an edit to this list, it's because there's an
   // earlier edit with the same range, and that edit will be the one that
   // we alter to consolidate the group of edits at that range.
-  let orderedEdits: atomIde.TextEdit[] = [];
-  for (let edit of edits) {
-    let key = edit.oldRange.toString();
+  const orderedEdits: atomIde.TextEdit[] = []
+  for (const edit of edits) {
+    const key = edit.oldRange.toString()
     if (!seenRanges.has(key)) {
-      orderedEdits.push(edit);
-      seenRanges.add(key);
+      orderedEdits.push(edit)
+      seenRanges.add(key)
     }
-    editIndex.add(key, edit.newText);
+    editIndex.add(key, edit.newText)
   }
 
   // Build a new `TextEdit[]` list. Keep the original ordering and preserve
   // the metadata held by the the first edit for each unique range, but
   // consolidate all insertions for a given range into one edit.
-  let result: atomIde.TextEdit[] = [];
-  for (let edit of orderedEdits) {
-    let key = edit.oldRange.toString();
-    let newText = editIndex.get(key)!.join('');
-    result.push({ ...edit, newText });
+  const result: atomIde.TextEdit[] = []
+  for (const edit of orderedEdits) {
+    const key = edit.oldRange.toString()
+    const newText = editIndex.get(key)!.join('')
+    result.push({ ...edit, newText })
   }
 
-  return result;
+  return result
 }
 
 function validateEdit(buffer: TextBuffer, edit: atomIde.TextEdit, prevEdit: atomIde.TextEdit | null): void {
@@ -421,32 +422,28 @@ function validateEdit(buffer: TextBuffer, edit: atomIde.TextEdit, prevEdit: atom
 
 // Detects whether a list of `TextEdit`s is problematic in a specific way — if
 // it include the exact same range in more than one edit.
-function textEditListHasDuplicateRanges (textEdits: atomIde.TextEdit[]) {
-  let ranges = new Set();
-  for (let edit of textEdits) {
-    let key = edit.oldRange.toString();
-    if (ranges.has(key)) return true;
-    ranges.add(key);
+function textEditListHasDuplicateRanges(textEdits: atomIde.TextEdit[]) {
+  const ranges = new Set()
+  for (const edit of textEdits) {
+    const key = edit.oldRange.toString()
+    if (ranges.has(key)) return true
+    ranges.add(key)
   }
-  return false;
+  return false
 }
 
 
 // Private: A subclass of `Map` that anticipates multiple values at each key.
 // The main way to add a value at a given key is via a new `Index::add` method.
 class Index<K, V> extends Map<K, V[]> {
-  constructor() {
-    super();
-  }
-
   // Like `Map::set`, but adds one or more values at a given key. Initializes
   // the key's value to be an empty array if necessary.
   add(key: K, ...values: V[]) {
-    let existing = this.get(key);
+    let existing = this.get(key)
     if (!existing) {
-      existing = [];
-      this.set(key, existing);
+      existing = []
+      this.set(key, existing)
     }
-    existing.push(...values);
+    existing.push(...values)
   }
 }

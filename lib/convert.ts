@@ -1,9 +1,8 @@
+import { FilesystemChange, Point, Range, TextEditor } from "atom"
 import type * as atomIde from "atom-ide-base"
-import * as ls from "./languageclient"
-import { Point, FilesystemChange, Range, TextEditor } from "atom"
 
-// eslint-disable-next-line import/no-deprecated
-import { diagnosticTypeToLSSeverity, atomIdeDiagnosticToLSDiagnostic } from "./adapters/diagnostic-adapter"
+import { atomIdeDiagnosticToLSDiagnostic,diagnosticTypeToLSSeverity } from "./adapters/diagnostic-adapter"
+import * as ls from "./languageclient"
 
 /**
  * Public: Class that contains a number of helper methods for general conversions between the language server protocol
@@ -205,13 +204,13 @@ export default class Convert {
 
   /** @deprecated Use Linter V2 service */
   public static atomIdeDiagnosticToLSDiagnostic(diagnostic: atomIde.Diagnostic): ls.Diagnostic {
-    // eslint-disable-next-line import/no-deprecated
+     
     return atomIdeDiagnosticToLSDiagnostic(diagnostic)
   }
 
   /** @deprecated Use Linter V2 service */
   public static diagnosticTypeToLSSeverity(type: atomIde.DiagnosticType): ls.DiagnosticSeverity {
-    // eslint-disable-next-line import/no-deprecated
+     
     return diagnosticTypeToLSSeverity(type)
   }
 
@@ -239,7 +238,7 @@ export default class Convert {
   public static convertLsTextEdit(textEdit: ls.TextEdit | ls.AnnotatedTextEdit | ls.SnippetTextEdit): atomIde.TextEdit {
     // TODO: support annotations
     // TODO: This is a kludge just to get past `SnippetTextEdit` support.
-    let newText = ls.SnippetTextEdit.is(textEdit) ? textEdit.snippet.value : textEdit.newText
+    const newText = ls.SnippetTextEdit.is(textEdit) ? textEdit.snippet.value : textEdit.newText
     return {
       oldRange: Convert.lsRangeToAtomRange(textEdit.range),
       newText

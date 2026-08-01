@@ -1,15 +1,16 @@
-import type * as atomIde from "atom-ide-base"
-import Convert from "../convert"
 import { Point, Range, TextEditor } from "atom"
+import type * as atomIde from "atom-ide-base"
+import * as lsp from "vscode-languageserver-protocol"
+
+import Convert from "../convert"
 import {
   LanguageClientConnection,
-  RenameParams,
   PrepareRenameParams,
+  RenameParams,
   ServerCapabilities,
   TextDocumentEdit,
   TextEdit,
 } from "../languageclient"
-import * as lsp from "vscode-languageserver-protocol"
 
 // The “enhanced” refactor provider is one that allows the frontend package to
 // take advantage of a “prepare” phase, if the server supports it.
@@ -29,7 +30,7 @@ export default class RenameAdapter {
    * Whether the server supports the `textDocument/prepareRename` request.
    */
   public static canAdaptPrepare(serverCapabilities: ServerCapabilities): boolean {
-    let provider = serverCapabilities.renameProvider
+    const provider = serverCapabilities.renameProvider
     return typeof provider === 'object' && !!provider?.prepareProvider
   }
 
@@ -100,7 +101,7 @@ export default class RenameAdapter {
   public static createRenameParams(editor: TextEditor, point: Point, newName: null) : PrepareRenameParams
   public static createRenameParams(editor: TextEditor, point: Point, newName: string) : RenameParams
   public static createRenameParams(editor: TextEditor, point: Point, newName: string | null): RenameParams | PrepareRenameParams {
-    let response = {
+    const response = {
       textDocument: Convert.editorToTextDocumentIdentifier(editor),
       position: Convert.pointToPosition(point),
     }

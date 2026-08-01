@@ -1,7 +1,8 @@
 import type { Point, Range, TextEditor } from 'atom'
+
 import Convert from '../convert'
-import * as Utils from '../utils'
 import { Hover, LanguageClientConnection, MarkedString, MarkupContent, ServerCapabilities } from '../languageclient'
+import * as Utils from '../utils'
 
 // Like LSP’s `MarkupContent`, but abstracts away the difference between it and
 // the deprecated `MarkedString` type.
@@ -76,14 +77,14 @@ export default class HoverAdapter {
     editor: TextEditor,
     point: Point
   ) {
-    let documentPositionParams = Convert.editorToTextDocumentPositionParams(editor, point)
+    const documentPositionParams = Convert.editorToTextDocumentPositionParams(editor, point)
 
-    let hover = await connection.hover(documentPositionParams)
+    const hover = await connection.hover(documentPositionParams)
     if (hover == null || HoverAdapter.isEmptyHover(hover)) {
       return null
     }
 
-    let range = hover.range == null ?
+    const range = hover.range == null ?
       Utils.getWordAtPosition(editor, point) :
       Convert.lsRangeToAtomRange(hover.range)
 
@@ -118,7 +119,7 @@ function isMarkedString(x: MarkedString | MarkupContent): x is MarkedString {
 function convertMarkedStringToMarkupContentValue(markedString: MarkedString) {
   if (typeof markedString === 'string') return markedString
 
-  let { language, value } = markedString
+  const { language, value } = markedString
   return `\`\`\`${language}\n${value}\n\`\`\``
 }
 

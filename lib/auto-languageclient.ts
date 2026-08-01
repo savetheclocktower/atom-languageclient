@@ -1,14 +1,18 @@
+import { CompositeDisposable, Disposable, Point, Range, TextBuffer,TextEditor } from "atom"
+import * as ac from "atom/autocomplete-plus"
+import * as linter from "atom/linter"
+import * as atomIde from "atom-ide"
 import * as cp from "child_process"
-import * as ls from "./languageclient"
+import { Socket } from "net"
+import * as path from "path"
+import { basename } from "path"
 import * as rpc from "vscode-jsonrpc"
 import * as rpcNode from "vscode-jsonrpc/node"
-import * as path from "path"
-import * as atomIde from "atom-ide"
-import * as linter from "atom/linter"
-import Convert from "./convert.js"
+
 import ApplyEditAdapter from "./adapters/apply-edit-adapter"
 import AutocompleteAdapter, { grammarScopeToAutoCompleteSelector } from "./adapters/autocomplete-adapter"
 import * as CallHierarchyAdapter from "./adapters/call-hierarchy-adapter"
+import type * as codeActions from "./adapters/code-action-adapter"
 import CodeActionAdapter from "./adapters/code-action-adapter"
 import CodeFormatAdapter, { CodeFormatType } from "./adapters/code-format-adapter"
 import CodeHighlightAdapter from "./adapters/code-highlight-adapter"
@@ -19,19 +23,24 @@ import { atomIdeDiagnosticsToLSDiagnostics } from './adapters/diagnostic-adapter
 import DocumentSyncAdapter from "./adapters/document-sync-adapter"
 import FindReferencesAdapter from "./adapters/find-references-adapter"
 import HoverAdapter, { HoverInformation, HoverProvider } from "./adapters/hover-adapter"
+import type * as intentions from "./adapters/intentions-list-adapter"
 import IntentionsListAdapter from "./adapters/intentions-list-adapter"
+import LinterPullAdapter from "./adapters/linter-pull-adapter"
 import LinterPushV2Adapter from "./adapters/linter-push-v2-adapter"
 import LoggingConsoleAdapter from "./adapters/logging-console-adapter"
 import NotificationsAdapter from "./adapters/notifications-adapter"
 import OutlineViewAdapter from "./adapters/outline-view-adapter"
+import type * as refactor from "./adapters/rename-adapter"
 import RenameAdapter from "./adapters/rename-adapter"
+import * as ShowDocumentAdapter from "./adapters/show-document-adapter"
 import SignatureHelpAdapter, { SignatureAdapter, SignatureProvider } from "./adapters/signature-help-adapter"
+import type * as symbol from "./adapters/symbol-adapter"
+import * as sa from "./adapters/symbol-adapter"
 import SymbolAdapter from "./adapters/symbol-adapter"
 import WorkDoneProgressAdapter from "./adapters/work-done-progress-adapter"
-import * as sa from "./adapters/symbol-adapter"
-import * as ShowDocumentAdapter from "./adapters/show-document-adapter"
-import * as Utils from "./utils"
-import { Socket } from "net"
+import WorkspaceFileOperationsAdapter, { TreeViewV2Service } from "./adapters/workspace-file-operations-adapter"
+import Convert from "./convert.js"
+import * as ls from "./languageclient"
 import {
   CodeActionKind,
   Diagnostic,
@@ -48,21 +57,13 @@ import {
 } from "./languageclient"
 import { ConsoleLogger, FilteredLogger, Logger } from "./logger"
 import {
-  LanguageServerProcess,
-  ServerManager,
   ActiveServer,
-  normalizePath,
   considerAdditionalPath,
+  LanguageServerProcess,
+  normalizePath,
+  ServerManager,
 } from "./server-manager.js"
-import { Disposable, CompositeDisposable, Point, Range, TextEditor, TextBuffer } from "atom"
-import * as ac from "atom/autocomplete-plus"
-import { basename } from "path"
-import type * as codeActions from "./adapters/code-action-adapter"
-import type * as intentions from "./adapters/intentions-list-adapter"
-import type * as symbol from "./adapters/symbol-adapter"
-import type * as refactor from "./adapters/rename-adapter"
-import WorkspaceFileOperationsAdapter, { TreeViewV2Service } from "./adapters/workspace-file-operations-adapter"
-import LinterPullAdapter from "./adapters/linter-pull-adapter"
+import * as Utils from "./utils"
 
 export {
   ActiveServer,
@@ -78,12 +79,12 @@ export interface ServerAdapters {
   signatureHelpAdapter?: SignatureHelpAdapter
 }
 
-let KNOWN_SYMBOL_KINDS: SymbolKind[] = []
+const KNOWN_SYMBOL_KINDS: SymbolKind[] = []
 for (let i = 1; i < 27; i++) {
   KNOWN_SYMBOL_KINDS.push(i as SymbolKind)
 }
 
-function safeGet (obj: unknown, keyPath: string): unknown {
+function safeGet(obj: unknown, keyPath: string): unknown {
   return keyPath.split('.').reduce((acc, key) => {
     return (acc as any)?.[key]
   }, obj)
@@ -1039,7 +1040,7 @@ export default class AutoLanguageClient {
   private async startServer(projectPath: string): Promise<ActiveServer> {
     const lsProcess = await this.reportBusyWhile(
       `Starting ${this.getServerName()} for ${path.basename(projectPath)}`,
-      // eslint-disable-next-line require-await
+
       async () => this.startServerProcess(projectPath)
     )
     this.captureServerErrors(lsProcess, projectPath)
@@ -1193,12 +1194,12 @@ export default class AutoLanguageClient {
    * it by overriding {@link supportsWorkspaceConfiguration} to return `true`.
    */
   protected async getWorkspaceConfiguration(params: ls.ConfigurationParams): Promise<ls.LSPAny[]> {
-    let key = this.getRootConfigurationKey()
+    const key = this.getRootConfigurationKey()
     if (key === '') {
       throw new Error('Server did not implement getRootConfigurationKey')
     }
-    let rawSettings = atom.config.get(key)
-    let mappedSettings = this.mapConfigurationObject(rawSettings)
+    const rawSettings = atom.config.get(key)
+    const mappedSettings = this.mapConfigurationObject(rawSettings)
 
     // For now we're ignoring any `scopeUri` property present for each
     // configuration item, at least until there's a use case for paying
@@ -1325,7 +1326,7 @@ export default class AutoLanguageClient {
   shouldIgnoreLinterMessage(diag: Diagnostic, editor: TextEditor | undefined, range: Range) {
     // This method used to be called `shouldIgnoreMessage`. If the consumer
     // overrode that method, then we should invoke that instead.
-    let overriddenAtOldLocation = this.shouldIgnoreMessage !== AutoLanguageClient.prototype.shouldIgnoreMessage
+    const overriddenAtOldLocation = this.shouldIgnoreMessage !== AutoLanguageClient.prototype.shouldIgnoreMessage
     if (overriddenAtOldLocation) {
       return this.shouldIgnoreMessage(diag, editor, range)
     }
@@ -1378,7 +1379,7 @@ export default class AutoLanguageClient {
   transformLinterMessage(message: linter.Message, diag: Diagnostic, editor?: TextEditor): linter.Message | void {
     // This method used to be called `transformMessage`. If the consumer
     // overrode the original method, then we should invoke that instead.
-    let overriddenAtOldLocation = this.transformMessage !== AutoLanguageClient.prototype.transformMessage
+    const overriddenAtOldLocation = this.transformMessage !== AutoLanguageClient.prototype.transformMessage
     if (overriddenAtOldLocation) {
       return this.transformMessage(message, diag, editor)
     }
@@ -1402,7 +1403,7 @@ export default class AutoLanguageClient {
    *  messages that will be sent to the `linter` package.
    */
   getLinterMessageLimitForBuffer(_buffer?: TextBuffer) {
-    return Infinity;
+    return Infinity
   }
 
   /**
@@ -1739,12 +1740,12 @@ export default class AutoLanguageClient {
   }
 
   public provideIntentionsList(): intentions.IntentionsProviderInterface | null {
-    let manager = this.findOrCreateIntentionsManager()
+    const manager = this.findOrCreateIntentionsManager()
     if (!manager) return null
     return {
       grammarScopes: this.getGrammarScopes(),
       getIntentions: async (options: intentions.GetIntentionsOptions) => {
-        let { textEditor } = options
+        const { textEditor } = options
         const server = await this._serverManager.getServer(textEditor)
         if (!server) return []
         return manager.getIntentions(options, server.connection)
@@ -1805,17 +1806,17 @@ export default class AutoLanguageClient {
       }
     })
 
-    let adapter = this.symbolProvider
+    const adapter = this.symbolProvider
     return {
       name: this.getServerName(),
       packageName: this.getPackageName(),
       isExclusive: adapter.isExclusive,
 
       canProvideSymbols: async (meta: sa.SymbolMeta): Promise<boolean | number> => {
-        let override = this.canProvideSymbols(meta)
+        const override = this.canProvideSymbols(meta)
         if (!override) return false
 
-        let server = await this._serverManager.getServer(meta.editor)
+        const server = await this._serverManager.getServer(meta.editor)
         if (!server) return false
 
         // For “list symbols in this file” and “go to this declaration,” we
@@ -1824,8 +1825,8 @@ export default class AutoLanguageClient {
         // grammar of the current file is irrelevant, and we should allow this
         // provider to opt in if it's active.
         if (meta.type !== 'project') {
-          let scopes = this.getGrammarScopes()
-          let baseScope = meta.editor.getGrammar()?.scopeName
+          const scopes = this.getGrammarScopes()
+          const baseScope = meta.editor.getGrammar()?.scopeName
           if (!scopes.includes(baseScope)) return false
         }
 
@@ -1833,10 +1834,10 @@ export default class AutoLanguageClient {
       },
 
       getSymbols: async (meta: sa.SymbolMeta, listController: sa.ListController): Promise<sa.SymbolResponse> => {
-        let query = meta.query ?? ''
-        let minLength = this.minimumQueryLengthForSymbolSearch(meta) ?? 1
+        const query = meta.query ?? ''
+        const minLength = this.minimumQueryLengthForSymbolSearch(meta) ?? 1
         if (meta.type === 'project' && query.length < minLength) {
-          let noun = minLength === 1 ? 'character' : 'characters'
+          const noun = minLength === 1 ? 'character' : 'characters'
           listController.set({
             loadingMessage: null,
             emptyMessage: `Query must be at least ${minLength} ${noun} long.`
@@ -1845,7 +1846,7 @@ export default class AutoLanguageClient {
         } else {
           listController.set({ emptyMessage: `No results.` })
         }
-        let server = await this._serverManager.getServer(meta.editor)
+        const server = await this._serverManager.getServer(meta.editor)
         if (!server) return []
 
         return adapter.getSymbols(server, meta)
@@ -1920,6 +1921,7 @@ export default class AutoLanguageClient {
         try {
           return await this.linterPullAdapter!.lint(server, editor)
         } catch (err) {
+          // eslint-disable-next-line no-console
           console.error(err)
           return null
         }
@@ -2145,7 +2147,7 @@ export default class AutoLanguageClient {
       grammarScopes: this.getGrammarScopes(),
       priority: 1,
       getCodeActions: (editor, range, diagnostics) => {
-        let ideDiagnostics = atomIdeDiagnosticsToLSDiagnostics(diagnostics)
+        const ideDiagnostics = atomIdeDiagnosticsToLSDiagnostics(diagnostics)
         return this.getCodeActions(editor, range, ideDiagnostics)
       }
     }
@@ -2168,7 +2170,7 @@ export default class AutoLanguageClient {
       return null
     }
 
-    let kinds = this.getKindsForCodeActionRequest(editor, range, diagnostics)
+    const kinds = this.getKindsForCodeActionRequest(editor, range, diagnostics)
     return CodeActionAdapter.getLsCodeActions(
       server.connection,
       server.capabilities,
@@ -2191,7 +2193,7 @@ export default class AutoLanguageClient {
       return null
     }
 
-    let kinds = this.getKindsForCodeActionRequest(editor, range, diagnostics)
+    const kinds = this.getKindsForCodeActionRequest(editor, range, diagnostics)
     return CodeActionAdapter.getCodeActions(
       server.connection,
       server.capabilities,
@@ -2348,7 +2350,7 @@ export default class AutoLanguageClient {
     //   crucially, that function will find the correct server instance for its
     //   path, then use the correct `SignatureAdapter` to look up its signature
     //   help.
-    let signatureAdapter = await this.waitForFirstSignatureAdapter()
+    const signatureAdapter = await this.waitForFirstSignatureAdapter()
     if (!signatureAdapter) return null
 
     return {
@@ -2367,10 +2369,10 @@ export default class AutoLanguageClient {
     point: Point,
     context?: SignatureHelpContext
   ): Promise<SignatureHelp | null> {
-    let server = await this._serverManager.getServer(editor)
+    const server = await this._serverManager.getServer(editor)
     if (!server) return null
 
-    let adapter = this.getServerAdapter(server, 'signatureAdapter')
+    const adapter = this.getServerAdapter(server, 'signatureAdapter')
     if (!adapter) return null
 
     return adapter.getSignature(editor, point, context)
@@ -2378,8 +2380,8 @@ export default class AutoLanguageClient {
 
   async waitForFirstSignatureAdapter(): Promise<SignatureAdapter | null> {
     // We might have one already…
-    for (let server of this._serverManager.getActiveServers()) {
-      let signatureAdapter = this.getServerAdapter(server, 'signatureAdapter')
+    for (const server of this._serverManager.getActiveServers()) {
+      const signatureAdapter = this.getServerAdapter(server, 'signatureAdapter')
       if (signatureAdapter != null) {
         return Promise.resolve(signatureAdapter)
       }

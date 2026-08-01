@@ -1,9 +1,10 @@
-import * as path from "path"
-import * as os from "os"
+import { TextEditor } from "atom"
 import * as fs from "fs"
+import * as os from "os"
+import * as path from "path"
+
 import ApplyEditAdapter from "../../lib/adapters/apply-edit-adapter"
 import Convert from "../../lib/convert"
-import { TextEditor } from "atom"
 
 const TEST_PATH1 = normalizeDriveLetterName(path.join(__dirname, "test.txt"))
 const TEST_PATH2 = normalizeDriveLetterName(path.join(__dirname, "test2.txt"))

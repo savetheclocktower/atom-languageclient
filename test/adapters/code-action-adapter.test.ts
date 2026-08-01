@@ -1,10 +1,10 @@
 import { Range } from "atom"
+
+import CodeActionAdapter from "../../lib/adapters/code-action-adapter"
+import IdeDiagnosticAdapter from "../../lib/adapters/diagnostic-adapter"
 import Convert from "../../lib/convert"
 import * as ls from "../../lib/languageclient"
-import CodeActionAdapter from "../../lib/adapters/code-action-adapter"
-/* eslint-disable import/no-deprecated */
-import IdeDiagnosticAdapter from "../../lib/adapters/diagnostic-adapter"
-import { createSpyConnection, createFakeEditor } from "../helpers.js"
+import { createFakeEditor,createSpyConnection } from "../helpers.js"
 
 describe("CodeActionAdapter", () => {
   describe("canAdapt", () => {

@@ -1,9 +1,10 @@
 import { TextEditor } from "atom"
 import { shell } from "electron"
-import { join, dirname } from "path"
+import { dirname,join } from "path"
+
 import * as ShowDocumentAdapter from "../../lib/adapters/show-document-adapter"
-import { LanguageClientConnection, ShowDocumentParams } from "../../lib/languageclient"
 import Convert from "../../lib/convert"
+import { LanguageClientConnection, ShowDocumentParams } from "../../lib/languageclient"
 import { createSpyConnection } from "../helpers"
 
 describe("ShowDocumentAdapter", () => {
@@ -13,11 +14,11 @@ describe("ShowDocumentAdapter", () => {
       const lcc = new LanguageClientConnection(connection)
 
       const spy = jasmine.createSpy()
-      // eslint-disable-next-line dot-notation
+       
       lcc["_onRequest"] = spy // private method access
 
       ShowDocumentAdapter.attach(lcc)
-      // eslint-disable-next-line dot-notation
+       
       expect(lcc["_onRequest"]).toHaveBeenCalledTimes(1)
       const spyArgs = spy.calls.argsFor(0)
       expect(spyArgs[0]).toEqual({ method: "window/showDocument" })

@@ -1,11 +1,11 @@
-import type * as atomIde from "atom-ide-base"
-import Convert from "../convert"
-import * as Utils from "../utils"
-import { SymbolTag } from "../languageclient"
-import type { LanguageClientConnection, ServerCapabilities, CallHierarchyItem } from "../languageclient"
-import type { CancellationTokenSource } from "vscode-jsonrpc"
 import type { Point, TextEditor } from "atom"
+import type * as atomIde from "atom-ide-base"
+import type { CancellationTokenSource } from "vscode-jsonrpc"
 
+import Convert from "../convert"
+import type { CallHierarchyItem,LanguageClientConnection, ServerCapabilities } from "../languageclient"
+import { SymbolTag } from "../languageclient"
+import * as Utils from "../utils"
 import OutlineViewAdapter from "./outline-view-adapter"
 
 const cancellationTokens = new WeakMap<LanguageClientConnection, CancellationTokenSource>()

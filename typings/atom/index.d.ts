@@ -1,4 +1,4 @@
-/* eslint-disable no-shadow, @typescript-eslint/no-unused-vars */
+ 
 import { Point, ScopeDescriptor, /* Notification, NotificationOptions,*/ TextEditor } from "atom"
 
 // NOTE: due to a bug in how TypeScript resolves ambient augments,

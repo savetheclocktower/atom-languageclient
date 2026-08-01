@@ -1,7 +1,7 @@
-import * as ls from "../../lib/languageclient"
 import CommandExecutionAdapter, { CommandCustomCallbackFunction } from "../../lib/adapters/command-execution-adapter"
-import { createSpyConnection } from "../helpers.js"
+import * as ls from "../../lib/languageclient"
 import { ExecuteCommandParams } from "../../lib/languageclient"
+import { createSpyConnection } from "../helpers.js"
 
 describe("CommandExecutionAdapter", () => {
   describe("canAdapt", () => {

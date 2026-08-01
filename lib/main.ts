@@ -3,22 +3,21 @@
 /// <reference path="../typings/atom-ide/index.d.ts"/>
 /* eslint-enable @typescript-eslint/triple-slash-reference */
 
+import CommandExecutionAdapter from "./adapters/command-execution-adapter"
+import LinterPushV2Adapter from "./adapters/linter-push-v2-adapter"
 import AutoLanguageClient from "./auto-languageclient"
 import Convert from "./convert"
-import { Logger, ConsoleLogger, FilteredLogger } from "./logger"
 import DownloadFile from "./download-file"
-import LinterPushV2Adapter from "./adapters/linter-push-v2-adapter"
-import CommandExecutionAdapter from "./adapters/command-execution-adapter"
-export { getExePath } from "./utils"
-
+import { ConsoleLogger, FilteredLogger,Logger } from "./logger"
 export * from "./auto-languageclient"
+export { getExePath } from "./utils"
 export {
   AutoLanguageClient,
-  Convert,
-  Logger,
-  ConsoleLogger,
-  FilteredLogger,
-  DownloadFile,
-  LinterPushV2Adapter,
   CommandExecutionAdapter,
+  ConsoleLogger,
+  Convert,
+  DownloadFile,
+  FilteredLogger,
+  LinterPushV2Adapter,
+  Logger,
 }

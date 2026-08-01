@@ -1,5 +1,5 @@
-import { TextDocumentSyncKind, TextDocumentSyncOptions } from "../../lib/languageclient"
 import DocumentSyncAdapter from "../../lib/adapters/document-sync-adapter"
+import { TextDocumentSyncKind, TextDocumentSyncOptions } from "../../lib/languageclient"
 import { createFakeEditor } from "../helpers"
 
 describe("DocumentSyncAdapter", () => {

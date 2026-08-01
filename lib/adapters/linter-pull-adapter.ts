@@ -1,13 +1,14 @@
-import * as linter from "atom/linter"
-import { DocumentDiagnosticParams, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport, LanguageClientConnection } from "../languageclient"
-import { CancellationTokenSource } from "vscode-jsonrpc"
-import { Logger, NullLogger } from "../logger"
 import { Point, Range, TextEditor } from "atom"
-import * as Utils from '../utils'
+import * as linter from "atom/linter"
+import { CancellationTokenSource } from "vscode-jsonrpc"
+
 import Convert from "../convert"
-import { lsDiagnosticToV2Message } from "./linter-push-v2-adapter"
+import { DocumentDiagnosticParams, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport, LanguageClientConnection } from "../languageclient"
+import { Logger, NullLogger } from "../logger"
 import { ActiveServer } from "../server-manager"
+import * as Utils from '../utils'
 import IntentionsListAdapter from "./intentions-list-adapter"
+import { lsDiagnosticToV2Message } from "./linter-push-v2-adapter"
 
 // TODO: Does not yet support incremental re-linting by passing a `resultId`.
 
@@ -21,22 +22,22 @@ export default class LinterPullAdapter {
   logger: Logger
   intentionsListAdapter?: IntentionsListAdapter
 
-  constructor ({ logger, intentionsManager }: { logger?: Logger, intentionsManager?: IntentionsListAdapter }) {
+  constructor({ logger, intentionsManager }: { logger?: Logger, intentionsManager?: IntentionsListAdapter }) {
     this.logger = logger ?? new NullLogger()
     this.intentionsListAdapter = intentionsManager
   }
 
-  async lint (server: ActiveServer, editor: TextEditor) {
+  async lint(server: ActiveServer, editor: TextEditor) {
     this.logger.log('Linting editor', editor)
-    let { connection } = server
-    let textDocument = Convert.editorToTextDocumentIdentifier(editor)
-    let lastResults = this.lastResultsForEditor.get(editor)
-    let params: DocumentDiagnosticParams = { textDocument }
+    const { connection } = server
+    const textDocument = Convert.editorToTextDocumentIdentifier(editor)
+    const lastResults = this.lastResultsForEditor.get(editor)
+    const params: DocumentDiagnosticParams = { textDocument }
     // If we have a previous result from this editor, we can pass
     if (lastResults?.resultId) {
       params.previousResultId = lastResults.resultId
     }
-    let result = await Utils.doWithCancellationToken(
+    const result = await Utils.doWithCancellationToken(
       connection,
       this._cancellationTokens,
       (cancellationToken) => {
@@ -66,11 +67,11 @@ export default class LinterPullAdapter {
   ) {
     if (report === null) return null
 
-    let { items } = report
-    let filePath = editor.getPath() ?? ''
-    let messages = items.map(item => {
-      let code = item.code ? String(item.code) : null
-      let message = lsDiagnosticToV2Message(filePath, item)
+    const { items } = report
+    const filePath = editor.getPath() ?? ''
+    const messages = items.map(item => {
+      const code = item.code ? String(item.code) : null
+      const message = lsDiagnosticToV2Message(filePath, item)
       this.intentionsListAdapter?.onLinterMessageAdded(filePath, message, code ?? '', item, () => {}) // TODO
       return message
     })
@@ -78,12 +79,12 @@ export default class LinterPullAdapter {
     return messages
   }
 
-  public getDiagnosticsForEditorAtPosition (editor: TextEditor, position: Point | Range) {
-    let report = this.lastResultsForEditor.get(editor)
-    let diagnostics = report?.items ?? []
+  public getDiagnosticsForEditorAtPosition(editor: TextEditor, position: Point | Range) {
+    const report = this.lastResultsForEditor.get(editor)
+    const diagnostics = report?.items ?? []
 
     return diagnostics.filter(diagnostic => {
-      let diagnosticRange = Convert.lsRangeToAtomRange(diagnostic.range)
+      const diagnosticRange = Convert.lsRangeToAtomRange(diagnostic.range)
       if (positionIsPoint(position)) {
         return diagnosticRange.containsPoint(position)
       } else {
@@ -92,10 +93,10 @@ export default class LinterPullAdapter {
     })
   }
 
-  public getMessagesForEditorAtPosition (editor: TextEditor, position: Point | Range) {
-    let messages = this.currentMessagesForEditor.get(editor) ?? []
+  public getMessagesForEditorAtPosition(editor: TextEditor, position: Point | Range) {
+    const messages = this.currentMessagesForEditor.get(editor) ?? []
     return messages.filter(message => {
-      let messageRange = message.location.position
+      const messageRange = message.location.position
       if (positionIsPoint(position)) {
         return messageRange.containsPoint(position)
       } else {
@@ -105,6 +106,6 @@ export default class LinterPullAdapter {
   }
 }
 
-function positionIsPoint (position: Point | Range): position is Point {
+function positionIsPoint(position: Point | Range): position is Point {
   return ('row' in position) && (typeof position.row === 'number')
 }

@@ -1,8 +1,9 @@
 import { Range } from "atom"
+
+import CodeFormatAdapter from "../../lib/adapters/code-format-adapter"
 import Convert from "../../lib/convert"
 import * as ls from "../../lib/languageclient"
-import CodeFormatAdapter from "../../lib/adapters/code-format-adapter"
-import { createSpyConnection, createFakeEditor } from "../helpers.js"
+import { createFakeEditor,createSpyConnection } from "../helpers.js"
 
 describe("CodeFormatAdapter", () => {
   let fakeEditor: any

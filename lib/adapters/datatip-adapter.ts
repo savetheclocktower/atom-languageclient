@@ -1,8 +1,9 @@
-import type * as atomIde from "atom-ide-base"
-import Convert from "../convert"
-import * as Utils from "../utils"
-import { Hover, LanguageClientConnection, MarkupContent, MarkedString, ServerCapabilities } from "../languageclient"
 import { Grammar, Point, TextEditor } from "atom"
+import type * as atomIde from "atom-ide-base"
+
+import Convert from "../convert"
+import { Hover, LanguageClientConnection, MarkedString, MarkupContent, ServerCapabilities } from "../languageclient"
+import * as Utils from "../utils"
 
 /**
  * Public: Adapts the language server protocol "textDocument/hover" to the Atom
@@ -81,7 +82,7 @@ export default class DatatipAdapter {
       }
     }
 
-    let languageString = (markedString as { language: string }).language
+    const languageString = (markedString as { language: string }).language
 
     // Must check as <{language: string}> to disambiguate between
     // string and the more explicit object type because MarkedString
@@ -100,8 +101,8 @@ export default class DatatipAdapter {
 }
 
 function grammarForLanguageString(languageString: string): Grammar | undefined {
-  // @ts-ignore undocumented API
-  let grammar = atom.grammars.treeSitterGrammarForLanguageString(languageString)
+  // @ts-expect-error Undocumented API.
+  const grammar = atom.grammars.treeSitterGrammarForLanguageString(languageString)
   if (grammar) return grammar
   return atom.grammars.grammarForScopeName(`source.${languageString}`)
 }

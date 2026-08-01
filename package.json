@@ -38,17 +38,16 @@
     "@types/fuzzaldrin": "^2.1.7",
     "@types/jasmine": "^4.0.0",
     "@types/node": "^20.11.1",
-    "@typescript-eslint/eslint-plugin": "^6.3.0",
-    "@typescript-eslint/parser": "^6.3.0",
     "atom-jasmine3-test-runner": "^5.2.9",
-    "eslint": "^8.46.0",
-    "eslint-config-airbnb": "^19.0.4",
-    "eslint-plugin-import": "^2.25.3",
-    "eslint-plugin-jsx-a11y": "^6.5.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
+    "globals": "^15.15.0",
     "shx": "^0.3.3",
     "spawk": "^1.7.1",
     "standard-language-server": "^0.1.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.65.0"
   },
   "atomTestRunner": "./test/runner"
 }

@@ -1,11 +1,12 @@
+import { Notification, NotificationOptions } from "atom"
+
 import {
   LanguageClientConnection,
-  MessageType,
   MessageActionItem,
+  MessageType,
   ShowMessageParams,
   ShowMessageRequestParams,
 } from "../languageclient"
-import { Notification, NotificationOptions } from "atom"
 
 export interface NotificationButton {
   text: string
@@ -49,7 +50,7 @@ export default class NotificationsAdapter {
   ): Promise<MessageActionItem | null> {
     return new Promise((resolve, _reject) => {
       if (delegate) {
-        let shouldProceed = delegate.shouldShowMessageRequest(params, name, projectPath)
+        const shouldProceed = delegate.shouldShowMessageRequest(params, name, projectPath)
         if (!shouldProceed) return
       }
       const options: NotificationOptions = {
@@ -93,7 +94,7 @@ export default class NotificationsAdapter {
     delegate?: NotificationsDelegate
   ): void {
     if (delegate) {
-      let shouldProceed = delegate.shouldShowMessage(params, name, projectPath)
+      const shouldProceed = delegate.shouldShowMessage(params, name, projectPath)
       if (!shouldProceed) return
     }
     addNotificationForMessage(params.type, params.message, {
@@ -132,9 +133,7 @@ function addNotificationForMessage(
   options: NotificationOptions
 ): Notification | null {
   function isDuplicate(note: Notification): boolean {
-    // @ts-ignore
     const noteDismissed = note.isDismissed?.()
-    // @ts-ignore
     const noteOptions = note.getOptions?.()
     return (
       !noteDismissed &&
