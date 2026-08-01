@@ -32,7 +32,7 @@ type ApplyWorkspaceEditOptions = {
   //   applied changes, we will save it once the changes were made.
   //
   // For backward compatibility, 'unmodified' is the default value.
-  save: 'all' | 'none' | 'unmodified'
+  save?: 'all' | 'none' | 'unmodified'
 }
 
 /** Public: Adapts workspace/applyEdit commands to editors. */
@@ -66,12 +66,15 @@ export default class ApplyEditAdapter {
   }
 
   /**
-    * Tries to apply edits and reverts if anything goes wrong. Returns the
-    * checkpoint, so the caller can revert changes if needed.
+   * Tries to apply edits and reverts if anything goes wrong. Returns the
+   * checkpoint so that the caller can revert changes if needed.
    */
-  public static applyEdits(editor: TextEditor, edits: atomIde.TextEdit[]): number {
+  public static applyEdits(editor: TextEditor, rawEdits: atomIde.TextEdit[]): number {
     let buffer = editor.getBuffer()
     const checkpoint = buffer.createCheckpoint()
+    let edits: atomIde.TextEdit[] = normalizeTextEdits(rawEdits)
+    // TODO: Decide whether to allow a package to spy on `TextEdit`s or
+    // alter/override them with an advice method.
     try {
       let layer = ApplyEditAdapter.findOrCreateMarkerLayerForEditor(editor)
 
@@ -108,10 +111,19 @@ export default class ApplyEditAdapter {
     return ApplyEditAdapter.apply(params.edit)
   }
 
+  /**
+   * Apply an LSP {@link WorkspaceEdit} to a project.
+   *
+   * A `WorkspaceEdit` is more expansive than a `TextEdit[]` list and can
+   * include file operations like creations, deletions, and renamings.
+   */
   public static async apply(
-    workspaceEdit: WorkspaceEdit,
-    options: ApplyWorkspaceEditOptions = { save: 'none' }
+    rawWorkspaceEdit: WorkspaceEdit,
+    { save = 'unmodified' }: ApplyWorkspaceEditOptions = {}
   ): Promise<ApplyWorkspaceEditResponse> {
+    let workspaceEdit = rawWorkspaceEdit;
+    // TODO: Decide whether to allow a package to spy on `WorkspaceEdit`s or
+    // alter/override them with an advice method.
     normalize(workspaceEdit)
 
     // Keep checkpoints from all successful buffer edits.
@@ -198,9 +210,9 @@ export default class ApplyEditAdapter {
         const edits = Convert.convertLsTextEdits(edit.edits)
         const checkpoint = ApplyEditAdapter.applyEdits(editor, edits)
         checkpoints.push({ buffer, checkpoint })
-        if (options.save === 'none') {
+        if (save === 'none') {
           return
-        } else if (options.save === 'unmodified' && wasModified) {
+        } else if (save === 'unmodified' && wasModified) {
           return
         } else {
           await editor.save()
@@ -311,6 +323,86 @@ function normalize(workspaceEdit: WorkspaceEdit): void {
   workspaceEdit.documentChanges = documentChanges
 }
 
+/**
+ * Fix lists of `TextEdit`s that include multiple edits at the same insertion
+ * point.
+ *
+ * Generally, the LSP spec doesn't like `TextEdit` lists in which the edits
+ * overlap. But it does carve out an exception for several edits inserting at
+ * the same point; it says that the edits should be applied in order:
+ *
+ *    If multiple inserts have the same position, the order in the array
+ *    defines the order in which the inserted strings appear in the resulting
+ *    text.
+ *
+ * This is where we implement this behavior. We group edits together by their
+ * stated range, then we consolidate them in a way that preserves the ordering
+ * and intent.
+ *
+ * There are possible ways to construct lists of `TextEdit`s that would run
+ * afoul of this normalization because they flagrantly violate the spec (e.g.,
+ * interleaving insertion edits with other edits, or having genuine overlaps),
+ * and this won't catch those cases. But that's fine.
+ *
+ * One thing is unclear, though. The LSP spec lists examples of multiple edits
+ * having the same insertion point: “…multiple inserts, or any number of
+ * inserts followed by a single remove or replace edit.” It's not obvious how
+ * the second example is meant.
+ *
+ * If it means that the final edit might remove or replace text elsewhere in
+ * the document, in a way that does not overlap with the referenced insertions,
+ * that's fine.
+ *
+ * But if it means that the final edit would alter some of the content inserted
+ * by the earlier inserts, then that's a problem! The whole point is that the
+ * `range` of the LSP `TextEdit` describes buffer coordinates _before any edits
+ * have been applied_. So the final `TextEdit` would be unexpressable.
+ *
+ * Thus: even after this normalization process, if the returned `TextEdit[]`
+ * list contains edits with overlapping ranges, then it is still invalid, and
+ * we will be unable to apply it. We can handle normalization in the way that
+ * the LSP spec describes, but we can't turn genuinely incoherent edit lists
+ * into something valid.
+ */
+function normalizeTextEdits (edits: atomIde.TextEdit[]) {
+  if (edits.length === 1) return edits;
+  if (!textEditListHasDuplicateRanges(edits)) return edits;
+
+  // Keys will be string representations of ranges; values will be arrays of
+  // strings.
+  let editIndex = new Index<string, string>();
+  // Keep track of which ranges we've already seen.
+  let seenRanges = new Set<string>();
+
+  // This list will hold the first `TextEdit` for each unique `oldRange`. This
+  // is how we ensure that ordering is preserved.
+  //
+  // Whenever we skip adding an edit to this list, it's because there's an
+  // earlier edit with the same range, and that edit will be the one that
+  // we alter to consolidate the group of edits at that range.
+  let orderedEdits: atomIde.TextEdit[] = [];
+  for (let edit of edits) {
+    let key = edit.oldRange.toString();
+    if (!seenRanges.has(key)) {
+      orderedEdits.push(edit);
+      seenRanges.add(key);
+    }
+    editIndex.add(key, edit.newText);
+  }
+
+  // Build a new `TextEdit[]` list. Keep the original ordering and preserve
+  // the metadata held by the the first edit for each unique range, but
+  // consolidate all insertions for a given range into one edit.
+  let result: atomIde.TextEdit[] = [];
+  for (let edit of orderedEdits) {
+    let key = edit.oldRange.toString();
+    let newText = editIndex.get(key)!.join('');
+    result.push({ ...edit, newText });
+  }
+
+  return result;
+}
+
 function validateEdit(buffer: TextBuffer, edit: atomIde.TextEdit, prevEdit: atomIde.TextEdit | null): void {
   const path = buffer.getPath() || ""
   if (prevEdit && edit.oldRange.end.compare(prevEdit.oldRange.start) > 0) {
@@ -324,5 +416,37 @@ function validateEdit(buffer: TextBuffer, edit: atomIde.TextEdit, prevEdit: atom
   } else if (startCol > lineLength) {
     // The edit wants to start at a point that's past the end of the line, but
     // this is OK. `setTextInRange` seems to do just fine with this.
+  }
+}
+
+// Detects whether a list of `TextEdit`s is problematic in a specific way — if
+// it include the exact same range in more than one edit.
+function textEditListHasDuplicateRanges (textEdits: atomIde.TextEdit[]) {
+  let ranges = new Set();
+  for (let edit of textEdits) {
+    let key = edit.oldRange.toString();
+    if (ranges.has(key)) return true;
+    ranges.add(key);
+  }
+  return false;
+}
+
+
+// Private: A subclass of `Map` that anticipates multiple values at each key.
+// The main way to add a value at a given key is via a new `Index::add` method.
+class Index<K, V> extends Map<K, V[]> {
+  constructor() {
+    super();
+  }
+
+  // Like `Map::set`, but adds one or more values at a given key. Initializes
+  // the key's value to be an empty array if necessary.
+  add(key: K, ...values: V[]) {
+    let existing = this.get(key);
+    if (!existing) {
+      existing = [];
+      this.set(key, existing);
+    }
+    existing.push(...values);
   }
 }
