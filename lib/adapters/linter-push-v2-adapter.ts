@@ -15,7 +15,7 @@ import {
   findAllTextEditorsForPath,
   findFirstTextEditorForPath
 } from '../utils'
-import { CompositeDisposable, TextEditor, Range } from "atom"
+import { CompositeDisposable, TextEditor, Range, TextBuffer } from "atom"
 import IntentionsListAdapter from "../adapters/intentions-list-adapter"
 
 import type * as atomIde from "atom-ide-base"
@@ -31,8 +31,9 @@ export type DiagnosticCode = number | string
 export type LinterMessageSolution = linter.ReplacementSolution | linter.CallbackSolution
 
 export type LinterDelegate = codeActions.CodeActionsDelegate & {
-  shouldIgnoreMessage(diag: Diagnostic, editor: TextEditor | undefined, range: Range): boolean
-  transformMessage(message: linter.Message, diag: Diagnostic, editor?: TextEditor): linter.Message | void
+  shouldIgnoreLinterMessage(diag: Diagnostic, editor: TextEditor | undefined, range: Range): boolean
+  transformLinterMessage(message: linter.Message, diag: Diagnostic, editor?: TextEditor): linter.Message | void
+  getLinterMessageLimitForBuffer(editor?: TextBuffer): number
 }
 
 /**
@@ -139,7 +140,7 @@ export default class LinterPushV2Adapter {
     let range = Convert.lsRangeToAtomRange(diag.range)
     let editor = findFirstTextEditorForPath(path)
 
-    if (this._delegate?.shouldIgnoreMessage(diag, editor ?? undefined, range)) {
+    if (this._delegate?.shouldIgnoreLinterMessage(diag, editor ?? undefined, range)) {
       return null
     }
 
@@ -181,7 +182,7 @@ export default class LinterPushV2Adapter {
     // Allow a client to transform a linter message. This can happen in place
     // by modifying properties (and returning `undefined`) or by making and
     // returning a new object, as long as it conforms to the contract.
-    linterMessage = this._delegate?.transformMessage?.(linterMessage, diag, editor) ?? linterMessage
+    linterMessage = this._delegate?.transformLinterMessage?.(linterMessage, diag, editor) ?? linterMessage
 
     if (code) {
       this.addIntentionsForLinterMessage(path, linterMessage, code, diag)
@@ -248,16 +249,27 @@ export default class LinterPushV2Adapter {
       this._addOnSaveCallback(editor)
       this._intentionsManager?.clearLinterIntentions(editor)
     }
+    let textBuffer = textEditors[0]?.getBuffer()
 
     const codeMap = new Map<string, Diagnostic>()
     const diagnosticMap = new Map<string, linter.Message>()
 
     let messages: linter.Message[] = []
+    let messageLimit = this._delegate?.getLinterMessageLimitForBuffer(textBuffer) ?? Infinity
 
     let retainedDiagnostics: Diagnostic[] = []
     let codeActionRange: Range | null = null
 
     for (let diagnostic of params.diagnostics) {
+      // Stop once we've reached the configured upper limit for messages. We'll
+      // send what we have and the rest will have to wait until some of the
+      // earlier messages are addressed by the user.
+      //
+      // This is a practical way to avoid a worst-case scenario of, (e.g.)
+      // 100,000 messages being sent to `linter` and overwhelming it
+      // completely.
+      if (messages.length >= messageLimit) break
+
       let linterMessage = this.transformOrIgnoreDiagnosticMessage(
         path, diagnostic
       )

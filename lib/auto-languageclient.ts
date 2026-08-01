@@ -54,7 +54,7 @@ import {
   normalizePath,
   considerAdditionalPath,
 } from "./server-manager.js"
-import { Disposable, CompositeDisposable, Point, Range, TextEditor } from "atom"
+import { Disposable, CompositeDisposable, Point, Range, TextEditor, TextBuffer } from "atom"
 import * as ac from "atom/autocomplete-plus"
 import { basename } from "path"
 import type * as codeActions from "./adapters/code-action-adapter"
@@ -1289,31 +1289,120 @@ export default class AutoLanguageClient {
     })
   }
 
-  // TODO: This should probably be renamed to `shouldIgnoreLinterMessage` or
-  // something similar.
   /**
+   * @deprecated
    * A callback for allowing a package to ignore a linter message according to
    * arbitrary criteria.
+   *
+   * Deprecated; prefer {@link shouldIgnoreLinterMessage}. Overriding this
+   * method instead of `shouldIgnoreLinterMessage` will still work for now, but
+   * may eventually stop working.
    *
    * @returns Whether a given linter message should be ignored.
    */
   shouldIgnoreMessage(_diag: Diagnostic, _editor: TextEditor | undefined, _range: Range): boolean {
+    // Throwing an error here guarantees that this method will not get called
+    // directly within `atom-languageclient`. The only method that would call
+    // it is `shouldIgnoreLinterMessage` — which first ensures that the
+    // consumer has overridden it with their own implementation.
+    //
+    // The only reason to keep this method around is to hang a TSDoc message
+    // off of it; once we no longer care about that, we can remove this method
+    // altogether.
+    throw new Error('Invalid; do not call.')
+  }
+
+  /**
+   * A callback for allowing a package to ignore a linter message according to
+   * arbitrary criteria.
+   *
+   * By default, nothing is ignored; override this method to substitute your
+   * own judgment and filter out certain diagnostic messages from being sent to
+   * `linter` altogether.
+   *
+   * @returns Whether a given linter message should be ignored.
+   */
+  shouldIgnoreLinterMessage(diag: Diagnostic, editor: TextEditor | undefined, range: Range) {
+    // This method used to be called `shouldIgnoreMessage`. If the consumer
+    // overrode that method, then we should invoke that instead.
+    let overriddenAtOldLocation = this.shouldIgnoreMessage !== AutoLanguageClient.prototype.shouldIgnoreMessage
+    if (overriddenAtOldLocation) {
+      return this.shouldIgnoreMessage(diag, editor, range)
+    }
+
+    // Otherwise this is the default implementation and itself can be
+    // overridden by the consumer. By default, nothing is ignored.
     return false
   }
 
-  // TODO: This should probably be renamed to `transformLinterMessage` or
-  // something similar.
   /**
+   * @deprecated
    * A callback to allow a package to transform a linter message according to
    * arbitrary criteria.
+   *
+   * Deprecated; prefer {@link transformLinterMessage}. Overriding this method
+   * instead of `transformLinterMessage` will still work for now, but may
+   * eventually stop working.
    *
    * @returns Either undefined or a message object. If undefined, will keep the
    *   original message object; this allows a package to decline to modify the
    *   message or to modify it in-place instead of copying it. If an object is
    *   returned, it must abide by the linter message contract.
    */
-  transformMessage(message: linter.Message, _diag: Diagnostic, _editor?: TextEditor): linter.Message | void {
+  transformMessage(_message: linter.Message, _diag: Diagnostic, _editor?: TextEditor): linter.Message | void {
+    // Throwing an error here guarantees that this method will not get called
+    // directly within `atom-languageclient`. The only method that would call
+    // it is `transformLinterMessage` — which first ensures that the consumer
+    // has overridden it with their own implementation.
+    //
+    // The only reason to keep this method around is to hang a TSDoc message
+    // off of it; once we no longer care about that, we can remove this method
+    // altogether.
+    throw new Error('Invalid; do not call.')
+  }
+
+  /**
+   * A callback to allow a package to transform a linter message according to
+   * arbitrary criteria.
+   *
+   * Override this method if you want the opportunity to modify a linter
+   * message before it is sent to `linter`. You may consult the original
+   * {@link Diagnostic} object and the `TextEditor` that the message is
+   * associated with. By default, no transformation takes place.
+   *
+   * @returns Either undefined or a message object. If undefined, will keep the
+   *   original message object; this allows a package to decline to modify the
+   *   message or to modify it in-place instead of copying it. If an object is
+   *   returned, it must abide by the linter message contract.
+   */
+  transformLinterMessage(message: linter.Message, diag: Diagnostic, editor?: TextEditor): linter.Message | void {
+    // This method used to be called `transformMessage`. If the consumer
+    // overrode the original method, then we should invoke that instead.
+    let overriddenAtOldLocation = this.transformMessage !== AutoLanguageClient.prototype.transformMessage
+    if (overriddenAtOldLocation) {
+      return this.transformMessage(message, diag, editor)
+    }
     return message
+  }
+
+  /**
+   * Returns the maximum number of linter messages that should be sent for a
+   * given file.
+   *
+   * There is no practical limit to the number of diagnostic messages that can
+   * be sent at once, and sending large batches of messages may cause
+   * performance problems. This method returns `Infinity` by default, but you
+   * may have it return a smaller value in order to set an upper limit on the
+   * number of diagnostics that will be processed by the `linter` package.
+   *
+   * The method receives a `TextBuffer` instance; you may use that to vary the
+   * value you return according to your own criteria.
+   *
+   * @returns A number that acts as a per-file limit for the number of linter
+   *  messages that will be sent to the `linter` package.
+   */
+  getLinterMessageLimitForBuffer(_buffer?: TextBuffer) {
+    return Infinity;
   }
 
   /**
@@ -1393,11 +1482,14 @@ export default class AutoLanguageClient {
       this._intentionsManager,
       {
         ...this.getCodeActionsDelegate(),
-        shouldIgnoreMessage: (...args) => {
-          return this.shouldIgnoreMessage(...args)
+        shouldIgnoreLinterMessage: (...args) => {
+          return this.shouldIgnoreLinterMessage(...args)
         },
-        transformMessage: (...args) => {
-          return this.transformMessage(...args)
+        transformLinterMessage: (...args) => {
+          return this.transformLinterMessage(...args)
+        },
+        getLinterMessageLimitForBuffer: (...args) => {
+          return this.getLinterMessageLimitForBuffer(...args) ?? Infinity
         }
       }
     )
