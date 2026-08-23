@@ -135,9 +135,10 @@ describe("AutoCompleteAdapter", () => {
 
     it("provides a filtered selection based on the filterKey", async () => {
       const resultsLab = await getSuggestionsMock(completionItems, createRequest({ prefix: "lab" }))
-      expect(resultsLab.length).toBe(2)
       expect(resultsLab.some((r) => r.displayText === "thisHasFiltertext")).toBe(true)
       expect(resultsLab.some((r) => r.displayText === "label3")).toBe(true)
+      // `filteredout` has no `textEdit`, so it is genuinely filtered out.
+      expect(resultsLab.some((r) => r.displayText === "filteredout")).toBe(false)
 
       const resultsSnip = await getSuggestionsMock(completionItems, createRequest({ prefix: "snip" }))
       expect(resultsSnip.length).toBe(2)
@@ -163,9 +164,24 @@ describe("AutoCompleteAdapter", () => {
 
     it("uses the filterText property to arrange completions when there is a prefix", async () => {
       const results = await getSuggestionsMock(completionItems, createRequest({ prefix: "lab" }))
-      expect(results.length).toBe(2)
       expect(results[0].displayText).toBe("label3") // shorter than 'labrador', so expected to be first
       expect(results[1].displayText).toBe("thisHasFiltertext")
+    })
+
+    it("keeps suggestions that carry a textEdit even when they do not match the prefix", async () => {
+      // A `textEdit` rewrites an arbitrary buffer range, so the typed prefix is
+      // not a reliable signal for whether the suggestion is relevant.
+      // `autocomplete-plus` refuses to drop these; this stage runs first, so it
+      // has to make the same allowance or they never reach `autocomplete-plus`.
+      const results = await getSuggestionsMock(completionItems, createRequest({ prefix: "lab" }))
+      const displayed = results.map((r) => r.displayText)
+
+      expect(displayed).toContain("snippet5") // a plain `TextEdit`
+      expect(displayed).toContain("snippet6") // an `InsertReplaceEdit`
+
+      // …but they rank below the suggestions that actually matched.
+      expect(displayed.indexOf("snippet5")).toBeGreaterThan(displayed.indexOf("thisHasFiltertext"))
+      expect(displayed.indexOf("snippet6")).toBeGreaterThan(displayed.indexOf("thisHasFiltertext"))
     })
   })
 
@@ -497,6 +513,38 @@ describe("AutoCompleteAdapter", () => {
         expect((results[0] as TextSuggestion).customReplacementPrefix).toBe("#align")
       })
 
+      // `TextEdit.is` returns `false` for an `InsertReplaceEdit`, so
+      // `applyCompletionItemToSuggestion` cannot set `suggestion.textEdit` for
+      // one. We advertise `insertReplaceSupport`, so servers send these
+      // routinely — and without `textEdit`, `autocomplete-plus` neither applies
+      // the edit directly nor exempts the suggestion from its own filtering.
+      const insertReplaceItem = {
+        label: "align",
+        sortText: "a",
+        textEdit: {
+          replace: { start: { line: 0, character: 2 }, end: { line: 0, character: 5 } },
+          insert: { start: { line: 0, character: 4 }, end: { line: 0, character: 10 } },
+          newText: "hello world",
+        },
+      }
+
+      it("exposes a textEdit for an InsertReplaceEdit, using replace when shouldReplace is true", async () => {
+        const results = await getSuggestionsMock([insertReplaceItem], customRequest, undefined, undefined, true)
+        const textEdit = (results[0] as any).textEdit
+
+        expect(textEdit).toBeDefined()
+        expect(textEdit.newText).toBe("hello world")
+        expect(textEdit.oldRange).toEqual(Convert.lsRangeToAtomRange(insertReplaceItem.textEdit.replace))
+      })
+
+      it("exposes a textEdit for an InsertReplaceEdit, using insert when shouldReplace is false", async () => {
+        const results = await getSuggestionsMock([insertReplaceItem], customRequest, undefined, undefined, false)
+        const textEdit = (results[0] as any).textEdit
+
+        expect(textEdit).toBeDefined()
+        expect(textEdit.oldRange).toEqual(Convert.lsRangeToAtomRange(insertReplaceItem.textEdit.insert))
+      })
+
       describe("applies the change if shouldReplace is true", () => {
         it("1", async () => {
           const results = await getSuggestionsMock(
@@ -595,7 +643,11 @@ describe("AutoCompleteAdapter", () => {
           expect(results4[0].displayText).toBe("align")
           expect((results4[0] as TextSuggestion).text).toBe("hello world")
           expect(results4[0].replacementPrefix).toBe("")
-          expect((results4[0] as any).customReplacementPrefix).toBe(undefined)
+          // The edit range starts at the cursor, so there is no custom prefix
+          // to carry. `applyTextEditToSuggestion` assigns unconditionally, so
+          // this is `""` rather than unset; the consumer checks it for
+          // truthiness, making the two equivalent.
+          expect((results4[0] as any).customReplacementPrefix).toBe("")
         })
       })
 
@@ -739,7 +791,11 @@ describe("AutoCompleteAdapter", () => {
           expect(results4[0].displayText).toBe("align")
           expect((results4[0] as TextSuggestion).text).toBe("hello world")
           expect(results4[0].replacementPrefix).toBe("")
-          expect((results4[0] as any).customReplacementPrefix).toBe(undefined)
+          // The edit range starts at the cursor, so there is no custom prefix
+          // to carry. `applyTextEditToSuggestion` assigns unconditionally, so
+          // this is `""` rather than unset; the consumer checks it for
+          // truthiness, making the two equivalent.
+          expect((results4[0] as any).customReplacementPrefix).toBe("")
         })
       })
     })

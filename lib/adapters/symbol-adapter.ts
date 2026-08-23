@@ -71,6 +71,15 @@ export type SymbolResponse = SymbolEntry[]
 
 type RawSymbolList = DocumentSymbol[] | SymbolInformation[] | Location[] | LocationLink[] | WorkspaceSymbol[]
 
+/**
+ * Anything a language server may hand back in response to a symbol request.
+ *
+ * `textDocument/definition` and `textDocument/declaration` are allowed to answer
+ * with a single {@link Location} instead of a list. Only {@link Location} has
+ * such a singular form; {@link LocationLink} is always sent as an array.
+ */
+type RawSymbolResults = RawSymbolList | Location
+
 type AtomRange = ReturnType<TextEditor['getSelectedBufferRange']>
 
 /**
@@ -172,7 +181,7 @@ export default class SymbolAdapter {
     const {
       workspaceSymbolProvider,
       documentSymbolProvider,
-      referencesProvider
+      definitionProvider
     } = server.capabilities
 
     if (meta.type === 'project') {
@@ -180,7 +189,10 @@ export default class SymbolAdapter {
     } else if (meta.type === 'file') {
       return !!documentSymbolProvider
     } else if (meta.type === 'project-find') {
-      if (referencesProvider) {
+      // `project-find` is a go-to-definition request, so it's
+      // `definitionProvider` that decides whether we can answer it properly —
+      // not `referencesProvider`, which gates `textDocument/references`.
+      if (definitionProvider) {
         return 1
       } else if (workspaceSymbolProvider) {
         // Almost as useful as a references provider, but is more likely to
@@ -232,14 +244,17 @@ export default class SymbolAdapter {
 
   /**
    * Protected: Supplies candidates to resolve a given project-wide reference
-   * for `symbols-view`.
+   * for `symbols-view` by asking the server where the term is defined.
+   *
+   * Requires `definitionProvider`; callers should fall back to
+   * {@link getProjectSymbols} when the server lacks it.
    *
    * @param server A language server instance.
    * @param meta Metadata about the symbol request from `symbols-view`.
    *
    * @returns The symbols to be shown by `symbols-view`.
    */
-  protected async getProjectReferences(
+  protected async getProjectDefinitions(
     server: Awaited<ServerPromise>,
     meta: SymbolMeta,
   ): Promise<SymbolEntry[]> {
@@ -256,14 +271,12 @@ export default class SymbolAdapter {
     const position = meta.range?.start ?? editor.getLastCursor().getBufferPosition()
 
     const params = Convert.editorToTextDocumentPositionParams(editor, position)
-    let results = await connection.gotoDefinition(params)
+    const results = await connection.gotoDefinition(params)
 
     if (results === null) return []
-    if (!Array.isArray(results)) {
-      results = [results]
-    }
 
-    return this.createSymbols(results as any, editor, meta, query)
+    // A singular `Location` is normalized by `createSymbols`.
+    return this.createSymbols(results, editor, meta, query)
   }
 
   /**
@@ -286,7 +299,16 @@ export default class SymbolAdapter {
     }
 
     if (meta.type === 'project-find') {
-      return this.getProjectReferences(server, meta)
+      // Mirror the tiers that `canProvideSymbols` scores. A server that only
+      // advertises `workspaceSymbolProvider` scores 0.95 and may still be
+      // chosen for this task, so it must not be asked for a definition.
+      if (server.capabilities.definitionProvider) {
+        return this.getProjectDefinitions(server, meta)
+      }
+      if (server.capabilities.workspaceSymbolProvider) {
+        return this.getProjectSymbols(server, meta)
+      }
+      return []
     }
 
     const editor: TextEditor = meta.editor
@@ -317,16 +339,21 @@ export default class SymbolAdapter {
    * @returns A list of symbols.
    */
   createSymbols(
-    symbolResults: RawSymbolList,
+    symbolResults: RawSymbolResults,
     editor: TextEditor,
     meta: SymbolMeta,
     name?: string
   ): SymbolResponse {
     const results: SymbolResponse = []
 
-    if (Location.is(symbolResults)) return []
+    // A server may answer a definition or declaration request with a single
+    // `Location` rather than a list. Normalize here so that every caller is
+    // covered, rather than only the one that happens to check first.
+    const symbolList: RawSymbolList = Location.is(symbolResults)
+      ? [symbolResults]
+      : symbolResults
 
-    const processSymbols = (symbols: typeof symbolResults) => {
+    const processSymbols = (symbols: RawSymbolList) => {
       for (const symbol of symbols) {
         if (isBareUri(symbol)) continue
 
@@ -344,6 +371,8 @@ export default class SymbolAdapter {
 
           results.push(result)
 
+          // This data structure is hierarchical, so we must recurse and
+          // flatten it!
           if (symbol.children) {
             processSymbols(symbol.children)
           }
@@ -392,7 +421,7 @@ export default class SymbolAdapter {
       }
     }
 
-    processSymbols(symbolResults)
+    processSymbols(symbolList)
 
     // TODO: We're sorting these by buffer position before the consumer sees
     // them, but we might want to leave that task to the consumer.

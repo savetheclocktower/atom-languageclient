@@ -241,10 +241,10 @@ function commandActionToCallback(
   if (!outerCommand) return null
 
   const { command, arguments: args } = outerCommand
-  if (!command || !args) return null
+  if (!command) return null
 
   return () => {
-    CommandExecutionAdapter.executeCommand(connection, command, args)
+    CommandExecutionAdapter.executeCommand(connection, command, args ?? [])
   }
 }
 
@@ -256,8 +256,10 @@ function editActionToCallback(
 
   const edits: ls.WorkspaceEdit[] = []
   if (edit) edits.push(edit)
+  // `arguments` is optional in LSP, and spreading `undefined` would throw here
+  // rather than in the callback — taking down the whole intentions list.
   if (command) edits.push(
-    ...(command.arguments as ls.WorkspaceEdit[])
+    ...((command.arguments ?? []) as ls.WorkspaceEdit[])
   )
 
   return () => {

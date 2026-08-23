@@ -1,5 +1,6 @@
 import { TextEditor } from "atom"
 import { shell } from "electron"
+import { readFileSync } from "fs"
 import { dirname,join } from "path"
 
 import * as ShowDocumentAdapter from "../../lib/adapters/show-document-adapter"
@@ -81,7 +82,17 @@ describe("ShowDocumentAdapter", () => {
       })
 
       it("selects the given selection range", async () => {
-        const selectionLSRange = { start: { line: 1, character: 30 }, end: { line: 1, character: 43 } } // `"Hello World"` in JavaScript file
+        // Locate `"Hello World"` in the compiled fixture rather than hard-coding
+        // its position; `tsc` prepends a prologue whose length varies with the
+        // `module` setting, which would otherwise shift these coordinates.
+        const needle = `"Hello World"`
+        const lines = readFileSync(helloPath, "utf8").split("\n")
+        const line = lines.findIndex((l) => l.includes(needle))
+        const character = lines[line].indexOf(needle)
+        const selectionLSRange = {
+          start: { line, character },
+          end: { line, character: character + needle.length },
+        }
         const params: ShowDocumentParams = {
           uri: helloPath,
           selection: selectionLSRange,

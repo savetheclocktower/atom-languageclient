@@ -12,6 +12,12 @@ import { lsDiagnosticToV2Message } from "./linter-push-v2-adapter"
 
 // TODO: Does not yet support incremental re-linting by passing a `resultId`.
 
+/**
+ * An adapter that implements a “pull” model for retrieving diagnostics via
+ * `textDocument/diagnostics`.
+ *
+ * This method was added in version 3.17.0 of the LSP spec.
+ */
 export default class LinterPullAdapter {
   private _cancellationTokens: WeakMap<LanguageClientConnection, CancellationTokenSource> = new WeakMap()
 
@@ -72,6 +78,10 @@ export default class LinterPullAdapter {
     const messages = items.map(item => {
       const code = item.code ? String(item.code) : null
       const message = lsDiagnosticToV2Message(filePath, item)
+      // The intentions list adapter needs to know when new linter messages are
+      // generated so that it can keep track of which ones are associated with
+      // which buffer ranges. If the linter messages have any associated fixes,
+      // they should be shown in the intentions menu.
       this.intentionsListAdapter?.onLinterMessageAdded(filePath, message, code ?? '', item, () => {}) // TODO
       return message
     })

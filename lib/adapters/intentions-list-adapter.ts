@@ -47,15 +47,59 @@ export type IntentionsDelegate = {
   getIntentionsForLinterMessage(bundle: MessageBundle, editor: TextEditor): Intention[] | null,
 } & CodeActionsDelegate
 
-class RangeMap<T> extends Map<Range, T> {
+/**
+ * A multimap keyed by buffer {@link Range}.
+ *
+ * Ranges are canonicalized by value, so two `Range`s that describe the same
+ * actual range address the same entry. More than one value may be filed against
+ * a single range — two rules flagging the same token is routine — so
+ * {@link add} appends rather than replacing.
+ *
+ * This deliberately does not extend {@link Map}: `set` implies replacement,
+ * which would discard all but the last value at a given range.
+ */
+class RangeIndex<T> {
+  #entries: Map<string, { range: Range, values: T[] }> = new Map()
+
+  #keyFor(range: Range): string {
+    return range.toString()
+  }
+
+  add(range: Range, value: T): this {
+    const key = this.#keyFor(range)
+    let entry = this.#entries.get(key)
+    if (!entry) {
+      // Store a frozen copy, distinct from the `Range` we were handed, so that
+      // a later mutation of the caller's range can't desynchronize the entry
+      // from the key it's filed under.
+      entry = { range: range.copy().freeze(), values: [] }
+      this.#entries.set(key, entry)
+    }
+    entry.values.push(value)
+    return this
+  }
+
+  get(range: Range): T[] {
+    return this.#entries.get(this.#keyFor(range))?.values ?? []
+  }
+
+  has(range: Range): boolean {
+    return this.#entries.has(this.#keyFor(range))
+  }
+
+  delete(range: Range): boolean {
+    return this.#entries.delete(this.#keyFor(range))
+  }
+
+  clear(): void {
+    this.#entries.clear()
+  }
+
   getResultsForPoint(point: Point): T[] {
-    const ranges = this.keys()
-    const results = []
-    for (const range of ranges) {
+    const results: T[] = []
+    for (const { range, values } of this.#entries.values()) {
       if (!range.containsPoint(point)) continue
-      const value = this.get(range)
-      if (!value) continue
-      results.push(value)
+      results.push(...values)
     }
     return results
   }
@@ -65,20 +109,20 @@ class EditorIntentionsList {
   // Diagnostic objects could just go in the bundle with everything else, but
   // we choose to store them separately to simplify communication with the
   // language server.
-  diagnosticByRange: RangeMap<Diagnostic>
+  diagnosticByRange: RangeIndex<Diagnostic>
   diagnosticByLinterMessage: Map<linter.Message, Diagnostic>
-  linterMessageBundleByRange: RangeMap<MessageBundle>
+  linterMessageBundleByRange: RangeIndex<MessageBundle>
 
   constructor() {
-    this.linterMessageBundleByRange = new RangeMap<MessageBundle>()
-    this.diagnosticByRange = new RangeMap<Diagnostic>()
+    this.linterMessageBundleByRange = new RangeIndex<MessageBundle>()
+    this.diagnosticByRange = new RangeIndex<Diagnostic>()
     this.diagnosticByLinterMessage = new Map<linter.Message, Diagnostic>()
   }
 
   add(range: Range, bundle: MessageBundle, diag: Diagnostic) {
-    this.linterMessageBundleByRange.set(range, bundle)
+    this.linterMessageBundleByRange.add(range, bundle)
     this.diagnosticByLinterMessage.set(bundle.message, diag)
-    this.diagnosticByRange.set(range, diag)
+    this.diagnosticByRange.add(range, diag)
   }
 
   clear() {
@@ -97,7 +141,12 @@ class EditorIntentionsList {
 }
 
 /**
- * An adapter to present a list of contextual options within a source code file.
+ * An adapter to present a list of contextual options within a source code
+ * file.
+ *
+ * This adapter aggregates the two different language-server features that
+ * could offer you contextual actions at a certain point in the buffer: code
+ * actions and diagnostic fixes.
  *
  * @param delegate A bundle of methods from other adapters that help this
  *   adapter to assemble a menu.

@@ -214,10 +214,16 @@ describe("AutoLanguageClient", () => {
   describe("getLanguageIdFromEditor", () => {
     const client = setupClient()
 
-    it("returns the editor's grammar name", () => {
+    it("maps a known grammar scope to its LSP language identifier", () => {
       const editor = new TextEditor()
-      spyOn(editor, "getGrammar").and.returnValue({ name: "testGrammarName" } as any)
-      expect((client as any).getLanguageIdFromEditor(editor)).toBe("testGrammarName")
+      spyOn(editor, "getGrammar").and.returnValue({ scopeName: "source.js", name: "JavaScript" } as any)
+      expect((client as any).getLanguageIdFromEditor(editor)).toBe("javascript")
+    })
+
+    it("falls back to the editor's lowercased grammar name for unknown scopes", () => {
+      const editor = new TextEditor()
+      spyOn(editor, "getGrammar").and.returnValue({ scopeName: "source.unknown", name: "testGrammarName" } as any)
+      expect((client as any).getLanguageIdFromEditor(editor)).toBe("testgrammarname")
     })
   })
 })
