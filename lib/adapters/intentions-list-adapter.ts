@@ -38,7 +38,24 @@ export type IntentionsProviderInterface = {
 
 export type MessageBundle = {
   message: linter.Message,
-  code: string,
+  /**
+   * The original {@link Diagnostic} this message was converted from.
+   *
+   * A {@link linter.Message} cannot represent everything a diagnostic carries
+   * — `code`, `codeDescription`, `data`, `relatedInformation` — so the
+   * original is kept alongside it. This mirrors `shouldIgnoreLinterMessage`,
+   * which is likewise handed the whole diagnostic to decide on.
+   */
+  diagnostic: Diagnostic,
+  /**
+   * The diagnostic's code, or `null` when the server did not supply one. LSP
+   * treats `code` as optional, so a consumer that keys off it should expect to
+   * be handed `null`.
+   *
+   * Retained as a convenience; it is derivable from
+   * {@link MessageBundle.diagnostic}.
+   */
+  code: string | null,
   path: string,
   callback: () => void
 }
@@ -51,8 +68,8 @@ export type IntentionsDelegate = {
  * A multimap keyed by buffer {@link Range}.
  *
  * Ranges are canonicalized by value, so two `Range`s that describe the same
- * actual range address the same entry. More than one value may be filed against
- * a single range — two rules flagging the same token is routine — so
+ * actual range address the same entry. More than one value may be filed
+ * against a single range — two rules flagging the same token is routine — so
  * {@link add} appends rather than replacing.
  *
  * This deliberately does not extend {@link Map}: `set` implies replacement,
@@ -106,28 +123,24 @@ class RangeIndex<T> {
 }
 
 class EditorIntentionsList {
-  // Diagnostic objects could just go in the bundle with everything else, but
-  // we choose to store them separately to simplify communication with the
-  // language server.
+  // Diagnostics are indexed separately from the bundles — even though each
+  // bundle also carries its own — because they're retrieved as a batch to be
+  // sent back to the language server as code-action context.
   diagnosticByRange: RangeIndex<Diagnostic>
-  diagnosticByLinterMessage: Map<linter.Message, Diagnostic>
   linterMessageBundleByRange: RangeIndex<MessageBundle>
 
   constructor() {
     this.linterMessageBundleByRange = new RangeIndex<MessageBundle>()
     this.diagnosticByRange = new RangeIndex<Diagnostic>()
-    this.diagnosticByLinterMessage = new Map<linter.Message, Diagnostic>()
   }
 
   add(range: Range, bundle: MessageBundle, diag: Diagnostic) {
     this.linterMessageBundleByRange.add(range, bundle)
-    this.diagnosticByLinterMessage.set(bundle.message, diag)
     this.diagnosticByRange.add(range, diag)
   }
 
   clear() {
     this.linterMessageBundleByRange.clear()
-    this.diagnosticByLinterMessage.clear()
     this.diagnosticByRange.clear()
   }
 
@@ -245,9 +258,9 @@ export default class IntentionsListAdapter implements IntentionsProviderInterfac
     return intentionsList
   }
 
-  onLinterMessageAdded(path: string, message: linter.Message, code: string, diag: Diagnostic, callback: () => void): void {
+  onLinterMessageAdded(path: string, message: linter.Message, code: string | null, diag: Diagnostic, callback: () => void): void {
     const { location: { position: range } } = message
-    const bundle = { message, code, path, callback }
+    const bundle: MessageBundle = { message, diagnostic: diag, code, path, callback }
 
     const editors = findAllTextEditorsForPath(path)
     for (const editor of editors) {

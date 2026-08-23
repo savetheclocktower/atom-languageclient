@@ -15,6 +15,40 @@ describe("LinterPushV2Adapter", () => {
     })
   })
 
+  describe("captureDiagnostics", () => {
+    function lsRange(startLine: number, startChar: number, endLine: number, endChar: number): ls.Range {
+      return {
+        start: { line: startLine, character: startChar },
+        end: { line: endLine, character: endChar },
+      }
+    }
+
+    it("registers intentions for diagnostics whether or not they carry a code", () => {
+      // Registration is also what files a diagnostic as context for the
+      // subsequent `textDocument/codeAction` request, so skipping the codeless
+      // ones kept the server from ever hearing about them. `code` is optional
+      // in LSP.
+      const onLinterMessageAdded = jasmine.createSpy("onLinterMessageAdded")
+      const intentions = { onLinterMessageAdded, clearLinterIntentions: () => undefined } as any
+      const adapter = new LinterPushV2Adapter(
+        new ls.LanguageClientConnection(createSpyConnection()),
+        intentions
+      )
+
+      adapter.captureDiagnostics({
+        uri: "file:///a/b/c/d.js",
+        diagnostics: [
+          { range: lsRange(1, 0, 1, 4), message: "with code", severity: ls.DiagnosticSeverity.Error, code: "E1" },
+          { range: lsRange(2, 0, 2, 4), message: "without code", severity: ls.DiagnosticSeverity.Error },
+        ],
+      })
+
+      expect(onLinterMessageAdded).toHaveBeenCalledTimes(2)
+      expect(onLinterMessageAdded.calls.argsFor(0)[2]).toBe("E1")
+      expect(onLinterMessageAdded.calls.argsFor(1)[2]).toBeNull()
+    })
+  })
+
   describe("diagnosticToMessage", () => {
     it("converts Diagnostic and path to a linter$Message", () => {
       const filePath = "/a/b/c/d"

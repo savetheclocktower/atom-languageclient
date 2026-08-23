@@ -3,14 +3,26 @@ import * as linter from "atom/linter"
 import { CancellationTokenSource } from "vscode-jsonrpc"
 
 import Convert from "../convert"
-import { DocumentDiagnosticParams, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport, LanguageClientConnection } from "../languageclient"
+import {
+  DocumentDiagnosticParams,
+  DocumentDiagnosticReportKind,
+  FullDocumentDiagnosticReport,
+  LanguageClientConnection
+} from "../languageclient"
 import { Logger, NullLogger } from "../logger"
 import { ActiveServer } from "../server-manager"
 import * as Utils from '../utils'
 import IntentionsListAdapter from "./intentions-list-adapter"
-import { lsDiagnosticToV2Message } from "./linter-push-v2-adapter"
+import { LinterMessageDelegate, lsDiagnosticToV2Message } from "./linter-push-v2-adapter"
 
 // TODO: Does not yet support incremental re-linting by passing a `resultId`.
+
+// TODO: Ignores the `relatedDocuments` field of a document diagnostic report.
+// A server with `interFileDependencies` may report diagnostics for *other*
+// files alongside the one that was asked about — a change here invalidating a
+// reference over there — and those are currently dropped. Surfacing them means
+// reporting messages for files this `lint()` call was not asked about, which
+// the `linter` service's per-editor model does not obviously accommodate.
 
 /**
  * An adapter that implements a “pull” model for retrieving diagnostics via
@@ -25,15 +37,40 @@ export default class LinterPullAdapter {
 
   private currentMessagesForEditor: WeakMap <TextEditor, linter.Message[]> = new WeakMap()
 
+  private lastServerForEditor: WeakMap<TextEditor, ActiveServer> = new WeakMap()
+
   logger: Logger
   intentionsListAdapter?: IntentionsListAdapter
+  delegate?: LinterMessageDelegate
 
-  constructor({ logger, intentionsManager }: { logger?: Logger, intentionsManager?: IntentionsListAdapter }) {
+  constructor(
+    { logger, intentionsManager, delegate }: {
+      logger?: Logger,
+      intentionsManager?: IntentionsListAdapter,
+      delegate?: LinterMessageDelegate
+    }
+  ) {
     this.logger = logger ?? new NullLogger()
     this.intentionsListAdapter = intentionsManager
+    this.delegate = delegate
+  }
+
+  /**
+   * Re-runs diagnostics for an editor that has already been linted at least
+   * once.
+   *
+   * The push adapter can recapture from the last `publishDiagnostics` payload
+   * it was handed; in the pull model the server has to be asked again, so we
+   * remember which server last served this editor.
+   */
+  public async relint(editor: TextEditor): Promise<linter.Message[] | null> {
+    const server = this.lastServerForEditor.get(editor)
+    if (!server) return null
+    return this.lint(server, editor)
   }
 
   async lint(server: ActiveServer, editor: TextEditor) {
+    this.lastServerForEditor.set(editor, server)
     this.logger.log('Linting editor', editor)
     const { connection } = server
     const textDocument = Convert.editorToTextDocumentIdentifier(editor)
@@ -75,20 +112,49 @@ export default class LinterPullAdapter {
 
     const { items } = report
     const filePath = editor.getPath() ?? ''
-    const messages = items.map(item => {
+
+    // Discard the intentions registered on the previous pass before adding this
+    // one's. Without this, the same fix is filed against the same buffer range
+    // on every lint and shows up in the menu once per pass. The push adapter
+    // clears for the same reason before it captures.
+    this.intentionsListAdapter?.clearLinterIntentions(editor)
+
+    const recapture = () => { void this.relint(editor) }
+
+    // A pathological server response — tens of thousands of messages — can
+    // overwhelm `linter`, so honor the same cap the push adapter respects.
+    const messageLimit = this.delegate?.getLinterMessageLimitForBuffer(editor.getBuffer()) ?? Infinity
+
+    const messages: linter.Message[] = []
+    for (const item of items) {
+      if (messages.length >= messageLimit) break
+
+      const range = Convert.lsRangeToAtomRange(item.range)
+      if (this.delegate?.shouldIgnoreLinterMessage(item, editor, range)) continue
+
       const code = item.code ? String(item.code) : null
-      const message = lsDiagnosticToV2Message(filePath, item)
+      let message = lsDiagnosticToV2Message(filePath, item)
+
+      // A client may reshape the message, either by mutating it in place and
+      // returning nothing or by returning a replacement.
+      message = this.delegate?.transformLinterMessage?.(message, item, editor) ?? message
+
       // The intentions list adapter needs to know when new linter messages are
       // generated so that it can keep track of which ones are associated with
       // which buffer ranges. If the linter messages have any associated fixes,
       // they should be shown in the intentions menu.
-      this.intentionsListAdapter?.onLinterMessageAdded(filePath, message, code ?? '', item, () => {}) // TODO
-      return message
-    })
+      this.intentionsListAdapter?.onLinterMessageAdded(filePath, message, code, item, recapture)
+      messages.push(message)
+    }
+
     this.currentMessagesForEditor.set(editor, messages)
     return messages
   }
 
+  /**
+   * Returns original {@link Diagnostic} messages with ranges that include the
+   * given point or range.
+   */
   public getDiagnosticsForEditorAtPosition(editor: TextEditor, position: Point | Range) {
     const report = this.lastResultsForEditor.get(editor)
     const diagnostics = report?.items ?? []
@@ -103,6 +169,10 @@ export default class LinterPullAdapter {
     })
   }
 
+  /**
+   * Returns {@link linter.Message} objects with ranges that include the given
+   * point or range.
+   */
   public getMessagesForEditorAtPosition(editor: TextEditor, position: Point | Range) {
     const messages = this.currentMessagesForEditor.get(editor) ?? []
     return messages.filter(message => {

@@ -1908,7 +1908,20 @@ export default class AutoLanguageClient {
   // Linter pull v2 API via textDocument/diagnostic ---------------------------
   public provideLinter(): linter.LinterProvider {
     this.linterPullAdapter ??= new LinterPullAdapter({
-      intentionsManager: this._intentionsManager
+      logger: this.logger,
+      // `_intentionsManager` may not exist yet; force its creation.
+      intentionsManager: this.findOrCreateIntentionsManager(),
+      delegate: {
+        shouldIgnoreLinterMessage: (...args) => {
+          return this.shouldIgnoreLinterMessage(...args)
+        },
+        transformLinterMessage: (...args) => {
+          return this.transformLinterMessage(...args)
+        },
+        getLinterMessageLimitForBuffer: (...args) => {
+          return this.getLinterMessageLimitForBuffer(...args) ?? Infinity
+        }
+      }
     })
     return {
       name: this.getServerName(),

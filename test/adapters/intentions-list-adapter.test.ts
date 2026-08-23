@@ -53,6 +53,7 @@ describe("IntentionsListAdapter", () => {
   ): MessageBundle {
     const bundle: MessageBundle = {
       message: createLinterMessage(keyRange),
+      diagnostic,
       code: "test-code",
       path: TEST_PATH,
       callback,
@@ -355,7 +356,8 @@ describe("IntentionsListAdapter", () => {
 
       const callback = jasmine.createSpy("callback")
       const message = createLinterMessage(new Range([0, 0], [0, 10]))
-      adapter.onLinterMessageAdded(TEST_PATH, message, "test-code", createDiagnostic(lsRange(0, 0, 0, 10)), callback)
+      const diagnostic = createDiagnostic(lsRange(0, 0, 0, 10))
+      adapter.onLinterMessageAdded(TEST_PATH, message, "test-code", diagnostic, callback)
 
       const intentions = await adapter.getIntentions(
         { bufferPosition: new Point(0, 3), textEditor: openEditor },
@@ -369,6 +371,10 @@ describe("IntentionsListAdapter", () => {
       expect(bundle.code).toBe("test-code")
       expect(bundle.path).toBe(TEST_PATH)
       expect(bundle.callback).toBe(callback)
+      // A `linter.Message` cannot carry `codeDescription`, `data`, or
+      // `relatedInformation`, so the consumer is handed the original diagnostic
+      // too — the same courtesy `shouldIgnoreLinterMessage` gets.
+      expect(bundle.diagnostic).toBe(diagnostic)
     })
 
     it("ignores editors open on a different path", async () => {

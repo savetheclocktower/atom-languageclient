@@ -30,11 +30,20 @@ export type DiagnosticCode = number | string
 
 export type LinterMessageSolution = linter.ReplacementSolution | linter.CallbackSolution
 
-export type LinterDelegate = codeActions.CodeActionsDelegate & {
+/**
+ * The parts of a linter delegate that concern individual diagnostic messages:
+ * whether to keep one, how to reshape it, and how many to emit at most.
+ *
+ * Shared with {@link LinterPullAdapter}, which needs these but has no use for
+ * the code-action half below.
+ */
+export type LinterMessageDelegate = {
   shouldIgnoreLinterMessage(diag: Diagnostic, editor: TextEditor | undefined, range: Range): boolean
   transformLinterMessage(message: linter.Message, diag: Diagnostic, editor?: TextEditor): linter.Message | void
   getLinterMessageLimitForBuffer(editor?: TextBuffer): number
 }
+
+export type LinterDelegate = codeActions.CodeActionsDelegate & LinterMessageDelegate
 
 /**
  * Public: Listen to diagnostics messages from the language server and publish
@@ -118,7 +127,7 @@ export default class LinterPushV2Adapter {
     this._editorsWithSaveCallbacks.add(editor)
   }
 
-  addIntentionsForLinterMessage(path: string, message: linter.Message, code: string, diag: Diagnostic): void {
+  addIntentionsForLinterMessage(path: string, message: linter.Message, code: string | null, diag: Diagnostic): void {
     if (!this._intentionsManager) return
 
     const recapture = () => { this.recaptureDiagnosticsForPath(path) }
@@ -184,9 +193,14 @@ export default class LinterPushV2Adapter {
     // returning a new object, as long as it conforms to the contract.
     linterMessage = this._delegate?.transformLinterMessage?.(linterMessage, diag, editor) ?? linterMessage
 
-    if (code) {
-      this.addIntentionsForLinterMessage(path, linterMessage, code, diag)
-    }
+    // Registered even when the diagnostic has no `code`. This call does more
+    // than feed `getIntentionsForLinterMessage`: it also files the diagnostic
+    // so that `IntentionsListAdapter` can widen the code-action range to cover
+    // it and pass it along as context on the `textDocument/codeAction`
+    // request. Skipping codeless diagnostics here meant the server was never
+    // told about them, and `code` is optional in LSP. A consumer that keys off
+    // the code can check for `null` itself.
+    this.addIntentionsForLinterMessage(path, linterMessage, code, diag)
 
     return linterMessage
   }
