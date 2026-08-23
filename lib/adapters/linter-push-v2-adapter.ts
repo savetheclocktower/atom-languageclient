@@ -15,12 +15,12 @@ import {
   PublishDiagnosticsParams,
   WorkspaceEdit
 } from "../languageclient"
-import { CommandExecutionAdapter } from "../main"
 import {
   findAllTextEditorsForPath,
   findFirstTextEditorForPath
 } from '../utils'
 import ApplyEditAdapter from "./apply-edit-adapter"
+import CommandExecutionAdapter from "./command-execution-adapter"
 
 const SHOULD_LOAD_SOLUTIONS = false
 const SHOULD_PRELOAD_SOLUTIONS_FOR_EACH_LINTER_MESSAGE = false
@@ -440,14 +440,14 @@ export default class LinterPushV2Adapter {
   /**
    * Private: Get the recorded diagnostic code for a range/message. Diagnostic codes are tricky because there's no
    * suitable place in the Linter API for them. For now, we'll record the original code for each range/message
-   * combination and retrieve it when needed (e.g. for passing back into code actions)
+   * combination and retrieve it when needed (e.g. for passing back into code actions).
    */
   protected getDiagnosticCode(editor: TextEditor, range: Range, text: string): DiagnosticCode | null {
     const path = editor.getPath()
     if (path != null) {
       const diagnosticCodes = this._diagnosticCodes.get(path)
       if (diagnosticCodes != null) {
-        return diagnosticCodes.get(getCodeKey(range, text)) || null
+        return diagnosticCodes.get(getDiagnosticKeyForRangeAndText(range, text)) || null
       }
     }
     return null
@@ -642,6 +642,29 @@ function getDiagnosticKey(diagnostic: Diagnostic): string {
  * @param message A {@link Message} object to serialize.
  * @returns A unique key.
  */
+/**
+ * Builds the key under which a diagnostic's code is recorded, from the parts of
+ * the diagnostic that survive conversion to a {@link linter.Message}: its range
+ * and its message text.
+ *
+ * This produces a different format from {@link getDiagnosticKey}, which keys off
+ * a {@link Diagnostic} directly. The two are not interchangeable and index
+ * separate maps.
+ *
+ * Defined here rather than in `./diagnostic-adapter` so that both this class and
+ * its `IdeDiagnosticAdapter` subclass can share one key format. The subclass may
+ * import from here, but not the reverse: this module is evaluated first, and
+ * importing the subclass would leave its `extends` clause pointing at an
+ * undefined value.
+ *
+ * @param range The range covered by the diagnostic.
+ * @param text The diagnostic's message text.
+ * @returns A key for looking the diagnostic's code up again later.
+ */
+export function getDiagnosticKeyForRangeAndText(range: Range, text: string): string {
+  return `${range.toString()},${text}`
+}
+
 function updateMessageKey(message: linter.Message): void {
   // From https://github.com/steelbrain/linter/blob/fadd462914ef0a8ed5b73a489f662a9393bdbe9f/lib/helpers.ts#L50-L64
   const { reference, location } = message
@@ -751,8 +774,4 @@ function quickfixActionToCallbackSolution(
     position: range,
     apply: callback
   }
-}
-
-function getCodeKey(range: Range, text: string): string {
-  return ([] as any[]).concat(...range.serialize(), text).join(",")
 }

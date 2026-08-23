@@ -1,5 +1,4 @@
-import { ExecuteCommandParams, ServerCapabilities } from "../languageclient"
-import { LanguageClientConnection } from "../main"
+import { ExecuteCommandParams, LanguageClientConnection, ServerCapabilities } from "../languageclient"
 
 export type CommandCustomCallbackFunction = (command: ExecuteCommandParams) => Promise<any | void>
 

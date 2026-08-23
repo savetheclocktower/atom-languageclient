@@ -1,10 +1,9 @@
 import * as atom from "atom"
 import * as atomIde from "atom-ide-base"
 
-import Convert from "../convert"
+import Convert, { atomIdeDiagnosticToLSDiagnostic } from "../convert"
 import * as ls from "../languageclient"
-import { DiagnosticSeverity } from "../languageclient"
-import LinterPushV2Adapter from "./linter-push-v2-adapter"
+import LinterPushV2Adapter, { getDiagnosticKeyForRangeAndText } from "./linter-push-v2-adapter"
 
 /** @deprecated Use Linter V2 service */
 export type DiagnosticCode = number | string
@@ -26,7 +25,7 @@ export default class IdeDiagnosticAdapter extends LinterPushV2Adapter {
     const codeMap = new Map()
     const messages = params.diagnostics.map((d) => {
       const linterMessage = this.diagnosticToV2Message(path, d)
-      const key = getCodeKey(
+      const key = getDiagnosticKeyForRangeAndText(
         linterMessage.location.position,
         Convert.diagnosticMessageToString(d.message)
       )
@@ -83,64 +82,26 @@ export default class IdeDiagnosticAdapter extends LinterPushV2Adapter {
   /**
    * Private: Get the recorded diagnostic code for a range/message. Diagnostic codes are tricky because there's no
    * suitable place in the Linter API for them. For now, we'll record the original code for each range/message
-   * combination and retrieve it when needed (e.g. for passing back into code actions)
+   * combination and retrieve it when needed (e.g. for passing back into code actions).
    */
   protected getDiagnosticCode(editor: atom.TextEditor, range: atom.Range, text: string): DiagnosticCode | null {
     const path = editor.getPath()
     if (path != null) {
       const diagnosticCodes = this._diagnosticCodes.get(path)
       if (diagnosticCodes != null) {
-        return diagnosticCodes.get(getCodeKey(range, text)) || null
+        return diagnosticCodes.get(getDiagnosticKeyForRangeAndText(range, text)) || null
       }
     }
     return null
   }
 }
 
-/** @deprecated Use Linter V2 service */
-export function atomIdeDiagnosticToLSDiagnostic(diagnostic: atomIde.Diagnostic): ls.Diagnostic {
-  // TODO: support diagnostic codes and codeDescriptions
-  // TODO!: support data
-  return {
-    range: Convert.atomRangeToLSRange(diagnostic.range),
-    severity: diagnosticTypeToLSSeverity(diagnostic.type),
-    source: diagnostic.providerName,
-    message: diagnostic.text || "",
-  }
-}
-
-export function atomIdeDiagnosticsToLSDiagnostics(diagnostics: atomIde.Diagnostic[]): ls.Diagnostic[] {
-  return diagnostics.map(d => atomIdeDiagnosticToLSDiagnostic(d))
-}
-
-/** @deprecated Use Linter V2 service */
-export function diagnosticTypeToLSSeverity(type: atomIde.DiagnosticType): ls.DiagnosticSeverity {
-  switch (type) {
-    case "Error":
-      return ls.DiagnosticSeverity.Error
-    case "Warning":
-      return ls.DiagnosticSeverity.Warning
-    case "Info":
-      return ls.DiagnosticSeverity.Information
-    default:
-      throw Error(`Unexpected diagnostic type ${type}`)
-  }
-}
-
-function getCodeKey(range: atom.Range, text: string): string {
-  return ([] as any[]).concat(...range.serialize(), text).join(",")
-}
-
-function lsSeverityToAtomIdeDiagnosticType(severity: DiagnosticSeverity): atomIde.Diagnostic["type"] {
-  switch (severity) {
-    case DiagnosticSeverity.Error:
-      return "Error"
-    case DiagnosticSeverity.Warning:
-      return "Warning"
-    case DiagnosticSeverity.Information:
-    case DiagnosticSeverity.Hint:
-      return "Info"
-    default:
-      throw Error(`Unexpected diagnostic severity '${severity}'`)
-  }
-}
+// These now live in `../convert`; re-exported here so that existing importers
+// of this module keep working. Defining them here made `convert` import this
+// module, which created a cycle that broke `IdeDiagnosticAdapter`'s `extends`
+// clause at load time.
+export {
+  atomIdeDiagnosticsToLSDiagnostics,
+  atomIdeDiagnosticToLSDiagnostic,
+  diagnosticTypeToLSSeverity,
+} from "../convert"

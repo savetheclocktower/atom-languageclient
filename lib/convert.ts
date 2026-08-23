@@ -1,7 +1,6 @@
 import { FilesystemChange, Point, Range, TextEditor } from "atom"
 import type * as atomIde from "atom-ide-base"
 
-import { atomIdeDiagnosticToLSDiagnostic,diagnosticTypeToLSSeverity } from "./adapters/diagnostic-adapter"
 import * as ls from "./languageclient"
 
 /**
@@ -249,4 +248,43 @@ export default class Convert {
     if (typeof message === 'string') return message
     return message.value
   }
+}
+
+// These conversion helpers live here rather than alongside the diagnostic
+// adapters. They are pure conversions that depend only on `Convert`, and
+// homing them in an adapter forced `convert` to import that adapter — creating
+// the cycle convert → diagnostic-adapter → linter-push-v2-adapter → convert.
+// Because `IdeDiagnosticAdapter` extends `LinterPushV2Adapter` at module
+// evaluation time, that cycle threw "Class extends value undefined" whenever
+// `linter-push-v2-adapter` happened to load first. The adapters re-export these
+// for backwards compatibility.
+
+/** @deprecated Use Linter V2 service */
+export function diagnosticTypeToLSSeverity(type: atomIde.DiagnosticType): ls.DiagnosticSeverity {
+  switch (type) {
+    case "Error":
+      return ls.DiagnosticSeverity.Error
+    case "Warning":
+      return ls.DiagnosticSeverity.Warning
+    case "Info":
+      return ls.DiagnosticSeverity.Information
+    default:
+      throw Error(`Unexpected diagnostic type ${type}`)
+  }
+}
+
+/** @deprecated Use Linter V2 service */
+export function atomIdeDiagnosticToLSDiagnostic(diagnostic: atomIde.Diagnostic): ls.Diagnostic {
+  // TODO: support diagnostic codes and codeDescriptions
+  // TODO!: support data
+  return {
+    range: Convert.atomRangeToLSRange(diagnostic.range),
+    severity: diagnosticTypeToLSSeverity(diagnostic.type),
+    source: diagnostic.providerName,
+    message: diagnostic.text || "",
+  }
+}
+
+export function atomIdeDiagnosticsToLSDiagnostics(diagnostics: atomIde.Diagnostic[]): ls.Diagnostic[] {
+  return diagnostics.map((d) => atomIdeDiagnosticToLSDiagnostic(d))
 }
