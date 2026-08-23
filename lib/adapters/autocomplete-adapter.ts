@@ -57,7 +57,7 @@ type CompletionItemAdjuster = (
 ) => void
 
 class PossiblyResolvedCompletionItem {
-   
+
   constructor(public completionItem: CompletionItem, public isResolved: boolean) {}
 }
 
@@ -166,8 +166,21 @@ export default class AutocompleteAdapter {
       // TODO use `ObjectArrayFilterer.setCandidate` in `_suggestionCache` to
       // avoid creating `ObjectArrayFilterer` every time from scratch.
       const objFilterer = new ObjectArrayFilterer(validSuggestions, "filterText")
-      // zadeh returns an array of the selected `Suggestion`s.
-      return objFilterer.filter(request.prefix) as any as Suggestion[]
+      // Returns an array of the selected `Suggestion`s.
+      const matched = objFilterer.filter(request.prefix) as any as Suggestion[]
+
+      // A suggestion carrying a `textEdit` operates on an arbitrary buffer
+      // range, so matching it against the typed prefix is not a reliable
+      // signal. `autocomplete-plus` keeps such suggestions no matter how they
+      // score, for exactly this reason. Mirror that here: this stage runs
+      // first, so anything it drops never reaches `autocomplete-plus` to be
+      // rescued. They're appended after the matches so they rank lower.
+      const matchedSet = new Set(matched)
+      const unmatched = validSuggestions.filter(
+        (suggestion) => suggestion.textEdit !== undefined && !matchedSet.has(suggestion)
+      )
+
+      return [...matched, ...unmatched]
     } else {
       return suggestions
     }
@@ -530,7 +543,7 @@ export default class AutocompleteAdapter {
    */
   public static applyCompletionItemToSuggestion(item: CompletionItem, suggestion: TextSuggestion): void {
     suggestion.text = item.insertText || item.label
-    suggestion.filterText = item.label // item.filterText || item.label
+    suggestion.filterText = item.filterText || item.label
     suggestion.displayText = item.label
     suggestion.type = AutocompleteAdapter.completionKindToSuggestionType(item.kind)
     AutocompleteAdapter.applyDetailsToSuggestion(item, suggestion)
@@ -611,6 +624,20 @@ export default class AutocompleteAdapter {
     suggestion.customReplacementPrefix = editor.getTextInBufferRange([atomRange.start, originalBufferPosition])
 
     suggestion.text = textEdit.newText
+
+    // `applyCompletionItemToSuggestion` can only set `textEdit` for plain
+    // `TextEdit`s, because `TextEdit.is` returns `false` for an
+    // `InsertReplaceEdit` — and we advertise `insertReplaceSupport`, so servers
+    // routinely send those. We've already resolved which of `insert`/`replace`
+    // applies, so fill in the gap here.
+    //
+    // This matters twice over on the `autocomplete-plus` side: it applies
+    // `textEdit` directly instead of falling back to `replacementPrefix`
+    // heuristics, and it exempts suggestions carrying one from being filtered
+    // out by fuzzy matching.
+    if (!suggestion.textEdit) {
+      suggestion.textEdit = { oldRange: atomRange, newText: textEdit.newText }
+    }
   }
 
   /**
