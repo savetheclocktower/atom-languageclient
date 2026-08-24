@@ -38,7 +38,7 @@ import type * as symbol from "./adapters/symbol-adapter"
 import * as sa from "./adapters/symbol-adapter"
 import SymbolAdapter from "./adapters/symbol-adapter"
 import WorkDoneProgressAdapter from "./adapters/work-done-progress-adapter"
-import WorkspaceFileOperationsAdapter, { TreeViewV2Service } from "./adapters/workspace-file-operations-adapter"
+import WorkspaceFileOperationsAdapter, { TreeViewV1_1Service } from "./adapters/workspace-file-operations-adapter"
 import Convert from "./convert.js"
 import * as ls from "./languageclient"
 import {
@@ -117,7 +117,7 @@ export default class AutoLanguageClient {
   protected busySignalService?: atomIde.BusySignalService
 
   /** Available if consumeTreeViewV2 is setup */
-  protected treeViewService?: TreeViewV2Service
+  protected treeViewService?: TreeViewV1_1Service
 
   protected processStdErr: string = ""
   protected logger!: Logger
@@ -134,6 +134,7 @@ export default class AutoLanguageClient {
   protected outlineView?: OutlineViewAdapter
   protected symbolProvider?: SymbolAdapter
   protected linterPullAdapter?: LinterPullAdapter
+  protected workspaceFileOperations?: WorkspaceFileOperationsAdapter
 
   // -------------------------------------------------------------------------
   // You must implement these so we know how to deal with your language and
@@ -1443,7 +1444,11 @@ export default class AutoLanguageClient {
   /** Start adapters that are not shared between servers. */
   private startExclusiveAdapters(server: ActiveServer): void {
     if (this.busySignalService) {
-      WorkDoneProgressAdapter.attach(server.connection, this.busySignalService)
+      // One per server: progress tokens are chosen by the server, so sharing
+      // state between them risks a collision. Disposed with the server so that
+      // a shutdown mid-task doesn't strand a busy message.
+      const workDoneProgress = new WorkDoneProgressAdapter(server.connection, this.busySignalService)
+      server.disposable.add(workDoneProgress)
     }
     NotificationsAdapter.attach(server.connection, this.name, server.projectPath, {
       shouldShowMessage: (p, name, projectPath) => {
@@ -1468,12 +1473,15 @@ export default class AutoLanguageClient {
     ApplyEditAdapter.attach(server.connection, this._documentSyncAdapter)
 
     if (WorkspaceFileOperationsAdapter.canAdapt(server.capabilities) && this.treeViewService) {
-      const workspaceFileOperationsAdapter = new WorkspaceFileOperationsAdapter(
+      this.workspaceFileOperations = new WorkspaceFileOperationsAdapter(
         server.connection,
         this.treeViewService,
         server.capabilities?.workspace?.fileOperations
       )
-      this.logger.info('Instantiated', workspaceFileOperationsAdapter)
+      // Its subscriptions live on the tree view rather than the server, so
+      // they have to be torn down explicitly when the server goes away.
+      server.disposable.add(this.workspaceFileOperations)
+      this.logger.info('Instantiated', this.workspaceFileOperations)
     }
 
     this._intentionsManager = this.findOrCreateIntentionsManager()
@@ -2413,7 +2421,7 @@ export default class AutoLanguageClient {
     return new Disposable(() => delete this.busySignalService)
   }
 
-  public consumeTreeViewV2(service: TreeViewV2Service) {
+  public consumeTreeViewV2(service: TreeViewV1_1Service) {
     this.treeViewService = service
     return new Disposable(() => delete this.treeViewService)
   }
