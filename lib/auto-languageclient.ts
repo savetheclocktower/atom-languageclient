@@ -202,16 +202,25 @@ export default class AutoLanguageClient {
           workspaceEdit: {
             // We support changes to existing documents…
             documentChanges: true,
-            // …and edits that involve creating, renaming, and deleting files…
-            resourceOperations: [
+            // …and, unless the consumer has opted out, edits that involve
+            // creating, renaming, and deleting files. Declaring none tells a
+            // conforming server not to ask for them in the first place.
+            resourceOperations: this.workspaceEditsCanIncludeFileOperations() ? [
               ResourceOperationKind.Create,
               ResourceOperationKind.Rename,
               ResourceOperationKind.Delete
-            ],
+            ] : [],
             // …but, if failures happen in the middle of a `WorkspaceEdit`, we
             // can only roll back the document changes, not the resource
             // operations.
-            failureHandling: FailureHandlingKind.TextOnlyTransactional,
+            //
+            // When file operations are declined above, no conforming edit can
+            // contain one, so every edit is text-only and can be rolled back
+            // in full. Saying so is more accurate than claiming a limitation
+            // that cannot arise.
+            failureHandling: this.workspaceEditsCanIncludeFileOperations()
+              ? FailureHandlingKind.TextOnlyTransactional
+              : FailureHandlingKind.Transactional,
             // As far as I know, there is nothing special about `TextEdit`s
             // that exempts them from the general guarantee that line endings
             // will be normalized (unless the user opts out of that behavior).
@@ -2281,6 +2290,45 @@ export default class AutoLanguageClient {
     }
 
     return RenameAdapter.getRename(server.connection, editor, position, newName)
+  }
+
+  /**
+   * Determines whether workspace edits can include operations like file
+   * creation, renaming, and deletion.
+   *
+   * It is up to us to declare to a language server what sorts of edits we can
+   * accept in a `WorkspaceEdit`. Thus we can decide: if we report the ability
+   * to handle file operations, we can support them — but cannot support
+   * _rollback_ of those `WorkspaceEdit`s.
+   *
+   * In theory, some future version of Pulsar could support this (with the
+   * help, perhaps, of the OS and trashing/undeletion). But for now we declare
+   * the appropriate capability about failure handling: we signal that we can
+   * rollback ordinary `WorkspaceEdit`s with text-only edits, but that those
+   * with file operations cannot be rolled back and can only be aborted.
+   *
+   * But because this is arguably messy, we let the consumer decide. An IDE
+   * package author can choose to redefine this method to return `false` —
+   * either unconditionally or based on a package config setting.
+   *
+   * Returning `false` declares no `resourceOperations` at all, which tells a
+   * conforming server not to ask for file operations in the first place. It
+   * also lets us promise full transactional rollback, since every edit is then
+   * text-only.
+   *
+   * Note that client capabilities are settled once, in the `initialize`
+   * request, and LSP gives no way to revise them mid-session. A value derived
+   * from a config setting therefore won't take effect until the servers
+   * restart, so an observer should call {@link restartAllServers}:
+   *
+   * ```js
+   * atom.config.observe('my-package.allowFileOperations', () => {
+   *   this.restartAllServers()
+   * })
+   * ```
+   */
+  protected workspaceEditsCanIncludeFileOperations() {
+    return true
   }
 
   /**

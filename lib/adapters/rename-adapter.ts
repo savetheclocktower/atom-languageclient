@@ -11,6 +11,7 @@ import {
   TextDocumentEdit,
   TextEdit,
 } from "../languageclient"
+import ApplyEditAdapter from "./apply-edit-adapter"
 
 // The “enhanced” refactor provider is one that allows the frontend package to
 // take advantage of a “prepare” phase, if the server supports it.
@@ -53,7 +54,30 @@ export default class RenameAdapter {
     if (edit === null) { return null }
 
     if (edit.documentChanges) {
-      return RenameAdapter.convertDocumentChanges(<TextDocumentEdit[]>edit.documentChanges)
+      // We advertise `resourceOperations`, so a server may ask us to create,
+      // rename, or delete files as part of the rename — renaming a Rust module
+      // renames the file that holds it, for instance. The `refactor` service
+      // has nowhere to express that: it takes a map of paths to text edits and
+      // nothing else. So we carry out the file operations ourselves and hand
+      // back only what the service can represent.
+      const textDocumentEdits: TextDocumentEdit[] = []
+      const resourceOperations: Exclude<typeof edit.documentChanges[number], TextDocumentEdit>[] = []
+
+      for (const change of edit.documentChanges) {
+        if (TextDocumentEdit.is(change)) {
+          textDocumentEdits.push(change)
+        } else {
+          resourceOperations.push(change)
+        }
+      }
+
+      if (resourceOperations.length > 0) {
+        // Applied before the text edits are returned, because any edits that
+        // accompany a rename will refer to the file by its *new* URI.
+        await ApplyEditAdapter.apply({ documentChanges: resourceOperations })
+      }
+
+      return RenameAdapter.convertDocumentChanges(textDocumentEdits)
     } else if (edit.changes) {
       return RenameAdapter.convertChanges(edit.changes)
     } else {
@@ -129,6 +153,10 @@ export default class RenameAdapter {
   public static convertDocumentChanges(documentChanges: TextDocumentEdit[]): Map<atomIde.IdeUri, atomIde.TextEdit[]> {
     const result = new Map()
     documentChanges.forEach((documentEdit) => {
+      // Anything that isn't a `TextDocumentEdit` — a file creation, rename, or
+      // deletion — has no text edits to contribute and no `textDocument` to be
+      // keyed by. `getRename` applies those separately.
+      if (!TextDocumentEdit.is(documentEdit)) return
       result.set(Convert.uriToPath(documentEdit.textDocument.uri), Convert.convertLsTextEdits(documentEdit.edits))
     })
     return result
