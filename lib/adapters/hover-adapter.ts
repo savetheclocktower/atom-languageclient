@@ -100,15 +100,31 @@ export default class HoverAdapter {
 
   private static isEmptyHover(hover: Hover | null) {
     if (hover == null) return true
-    if (hover.contents == null) return true
-    if (typeof hover.contents === 'string' && hover.contents.length === 0) {
-      return true
+
+    const { contents } = hover
+    if (contents == null) return true
+
+    if (Array.isArray(contents)) {
+      // Empty only when nothing in the list has anything to show. A leading
+      // empty string shouldn't discard the entries that follow it — and this
+      // covers the zero-length case, since `every` is vacuously true.
+      return contents.every(isEmptyContent)
     }
-    if (Array.isArray(hover.contents) && (hover.contents.length === 0 || hover.contents[0] === '')) {
-      return true
-    }
-    return false
+
+    return isEmptyContent(contents)
   }
+}
+
+/**
+ * Whether one piece of hover content is devoid of anything to show.
+ *
+ * Covers all three forms: a bare string, a {@link MarkedString}'s object form,
+ * and {@link MarkupContent} — the latter two both keeping their text in
+ * `value`.
+ */
+function isEmptyContent(content: MarkedString | MarkupContent): boolean {
+  if (typeof content === 'string') return content.length === 0
+  return !content.value
 }
 
 function isMarkedString(x: MarkedString | MarkupContent): x is MarkedString {
