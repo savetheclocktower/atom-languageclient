@@ -24,6 +24,8 @@ import { SnippetSuggestion, Suggestion, SuggestionBase,TextSuggestion } from "..
 import * as Utils from "../utils"
 import ApplyEditAdapter from "./apply-edit-adapter"
 
+export type AutocompleteProviderServiceVersion = 4 | 5.1
+
 /**
  * Defines the behavior of suggestion acceptance. Assume you have "cons|ole" in
  * the editor ( `|` is the cursor position) and the autocomplete suggestion is
@@ -66,6 +68,9 @@ class PossiblyResolvedCompletionItem {
  * Atom AutoComplete+ package.
  */
 export default class AutocompleteAdapter {
+
+  public serviceVersion: AutocompleteProviderServiceVersion = 5.1
+
   public static canAdapt(serverCapabilities: ServerCapabilities): boolean {
     return Boolean(serverCapabilities.completionProvider)
   }
@@ -169,18 +174,28 @@ export default class AutocompleteAdapter {
       // Returns an array of the selected `Suggestion`s.
       const matched = objFilterer.filter(request.prefix) as any as Suggestion[]
 
-      // A suggestion carrying a `textEdit` operates on an arbitrary buffer
-      // range, so matching it against the typed prefix is not a reliable
-      // signal. `autocomplete-plus` keeps such suggestions no matter how they
-      // score, for exactly this reason. Mirror that here: this stage runs
-      // first, so anything it drops never reaches `autocomplete-plus` to be
-      // rescued. They're appended after the matches so they rank lower.
       const matchedSet = new Set(matched)
-      const unmatched = validSuggestions.filter(
-        (suggestion) => suggestion.textEdit !== undefined && !matchedSet.has(suggestion)
-      )
+      const byPrefix = new Map<string, typeof validSuggestions>()
+      for (const suggestion of validSuggestions) {
+        if (matchedSet.has(suggestion)) continue
+        const prefix = suggestion.customReplacementPrefix
+        if (prefix === undefined || prefix === request.prefix) continue
+        let group = byPrefix.get(prefix)
+        if (group) {
+          group.push(suggestion)
+        } else {
+          group = [suggestion]
+          byPrefix.set(prefix, group)
+        }
+      }
 
-      return [...matched, ...unmatched]
+      const rescued: Suggestion[] = []
+      for (const [prefix, group] of byPrefix) {
+        const groupFilterer = new ObjectArrayFilterer(group, 'filterText')
+        rescued.push(...(groupFilterer.filter(prefix) as any as Suggestion[]))
+      }
+
+      return [...matched, ...rescued]
     } else {
       return suggestions
     }
@@ -479,7 +494,8 @@ export default class AutocompleteAdapter {
             request,
             triggerColumns,
             shouldReplace,
-            onDidConvertCompletionItem
+            onDidConvertCompletionItem,
+            this.serviceVersion
           ),
           new PossiblyResolvedCompletionItem(s, false),
         ])
@@ -510,9 +526,10 @@ export default class AutocompleteAdapter {
     request: ac.SuggestionsRequestedEvent,
     triggerColumns: [number, number],
     shouldReplace: ShouldReplace,
-    onDidConvertCompletionItem?: CompletionItemAdjuster
+    onDidConvertCompletionItem?: CompletionItemAdjuster,
+    serviceVersion: AutocompleteProviderServiceVersion = 5.1
   ): Suggestion {
-    AutocompleteAdapter.applyCompletionItemToSuggestion(item, suggestion as TextSuggestion)
+    AutocompleteAdapter.applyCompletionItemToSuggestion(item, suggestion as TextSuggestion, serviceVersion, shouldReplace)
 
     AutocompleteAdapter.applyTextEditToSuggestion(
       item.textEdit,
@@ -541,7 +558,12 @@ export default class AutocompleteAdapter {
    * @returns The {@link Suggestion} with details added from the
    *   {@link CompletionItem}.
    */
-  public static applyCompletionItemToSuggestion(item: CompletionItem, suggestion: TextSuggestion): void {
+  public static applyCompletionItemToSuggestion(
+    item: CompletionItem,
+    suggestion: TextSuggestion,
+    serviceVersion: AutocompleteProviderServiceVersion = 5.1,
+    shouldReplace: ShouldReplace = false
+  ): void {
     suggestion.text = item.insertText || item.label
     suggestion.filterText = item.filterText || item.label
     suggestion.displayText = item.label
@@ -549,20 +571,22 @@ export default class AutocompleteAdapter {
     AutocompleteAdapter.applyDetailsToSuggestion(item, suggestion)
 
     // We can add some properties that are more precise and conform better to
-    // LSP conventions. This is extra data, so it will be used if it's present;
-    // if not, it will gracefully degrade to older versions of the
-    // `autocomplete.provider` contract.
+    // LSP conventions. Attaching them is what tells `autocomplete-plus` that
+    // it's in charge of applying these edits, not us.
+    if (serviceVersion >= 5.1) {
+      // Version 5.1.0 of `autocomplete.provider` added the ability to apply an
+      // arbitrary `TextEdit` instead of throwing a bunch of heuristics at it.
+      if (item.textEdit && TextEdit.is(item.textEdit)) {
+        suggestion.textEdit = Convert.convertLsTextEdit(item.textEdit)
+      } else if (item.textEdit && InsertReplaceEdit.is(item.textEdit)) {
+        suggestion.textEdit = Convert.convertLsInsertReplaceEdit(item.textEdit, shouldReplace)
+      }
 
-    // Version 5.1.0 of `autocomplete.provider` added the ability to apply an
-    // arbitrary `TextEdit` instead of throwing a bunch of heuristics at it.
-    if (item.textEdit && TextEdit.is(item.textEdit)) {
-      suggestion.textEdit = Convert.convertLsTextEdit(item.textEdit)
-    }
-
-    // Version 5.1.0 of `autocomplete.provider` also added the ability to apply
-    // additional `TextEdit`s upon suggestion insertion.
-    if (item.additionalTextEdits) {
-      suggestion.additionalTextEdits = Convert.convertLsTextEdits(item.additionalTextEdits)
+      // Version 5.1.0 of `autocomplete.provider` also added the ability to apply
+      // additional `TextEdit`s upon suggestion insertion.
+      if (item.additionalTextEdits) {
+        suggestion.additionalTextEdits = Convert.convertLsTextEdits(item.additionalTextEdits)
+      }
     }
 
     suggestion.completionItem = item
@@ -607,7 +631,8 @@ export default class AutocompleteAdapter {
     _triggerColumns: [number, number],
     originalBufferPosition: Point,
     suggestion: TextSuggestion,
-    shouldReplace: ShouldReplace
+    shouldReplace: ShouldReplace,
+    _serviceVersion: AutocompleteProviderServiceVersion = 5.1
   ): void {
     if (!textEdit) return
 
@@ -624,20 +649,6 @@ export default class AutocompleteAdapter {
     suggestion.customReplacementPrefix = editor.getTextInBufferRange([atomRange.start, originalBufferPosition])
 
     suggestion.text = textEdit.newText
-
-    // `applyCompletionItemToSuggestion` can only set `textEdit` for plain
-    // `TextEdit`s, because `TextEdit.is` returns `false` for an
-    // `InsertReplaceEdit` — and we advertise `insertReplaceSupport`, so servers
-    // routinely send those. We've already resolved which of `insert`/`replace`
-    // applies, so fill in the gap here.
-    //
-    // This matters twice over on the `autocomplete-plus` side: it applies
-    // `textEdit` directly instead of falling back to `replacementPrefix`
-    // heuristics, and it exempts suggestions carrying one from being filtered
-    // out by fuzzy matching.
-    if (!suggestion.textEdit) {
-      suggestion.textEdit = { oldRange: atomRange, newText: textEdit.newText }
-    }
   }
 
   /**
@@ -674,6 +685,17 @@ export default class AutocompleteAdapter {
   public static applySnippetToSuggestion(item: CompletionItem, suggestion: SnippetSuggestion): void {
     if (item.insertTextFormat === InsertTextFormat.Snippet) {
       suggestion.snippet = item.textEdit != null ? item.textEdit.newText : item.insertText || item.label
+    }
+  }
+
+  public static handlePostInsertionTasks(
+    event: ac.SuggestionInsertedEvent,
+    serviceVersion: AutocompleteProviderServiceVersion = 4
+  ): void {
+    if (serviceVersion < 5.1) {
+      // Before version 5.1, `autocomplete-plus` could not apply
+      // `additionalTextEdits`, so we must do it ourselves.
+      AutocompleteAdapter.applyAdditionalTextEdits(event)
     }
   }
 

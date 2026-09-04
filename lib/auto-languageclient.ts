@@ -10,7 +10,7 @@ import * as rpc from "vscode-jsonrpc"
 import * as rpcNode from "vscode-jsonrpc/node"
 
 import ApplyEditAdapter from "./adapters/apply-edit-adapter"
-import AutocompleteAdapter, { grammarScopeToAutoCompleteSelector } from "./adapters/autocomplete-adapter"
+import AutocompleteAdapter, { type AutocompleteProviderServiceVersion,grammarScopeToAutoCompleteSelector } from "./adapters/autocomplete-adapter"
 import * as CallHierarchyAdapter from "./adapters/call-hierarchy-adapter"
 import type * as codeActions from "./adapters/code-action-adapter"
 import CodeActionAdapter from "./adapters/code-action-adapter"
@@ -90,6 +90,7 @@ function safeGet(obj: unknown, keyPath: string): unknown {
   }, obj)
 }
 
+
 /**
  * Public: AutoLanguageClient provides a simple way to have all the supported
  * Atom-IDE services wired up entirely for you by just subclassing it and
@@ -112,6 +113,8 @@ export default class AutoLanguageClient {
   private _lastAutocompleteRequest?: ac.SuggestionsRequestedEvent
   private _isDeactivating: boolean = false
   private _serverAdapters = new WeakMap<ActiveServer, ServerAdapters>()
+
+  private _requestedAutocompleteServiceVersions = new Set<AutocompleteProviderServiceVersion>()
 
   /** Available if consumeBusySignal is setup */
   protected busySignalService?: atomIde.BusySignalService
@@ -1595,6 +1598,22 @@ export default class AutoLanguageClient {
   }
 
   public provideAutocomplete(): ac.AutocompleteProvider {
+    return this.createAutocompleteProvider(5.1)
+  }
+
+  public provideAutocomplete_4(): ac.AutocompleteProvider {
+    return this.createAutocompleteProvider(4)
+  }
+
+  private createAutocompleteProvider(serviceVersion: AutocompleteProviderServiceVersion): ac.AutocompleteProvider {
+    this._requestedAutocompleteServiceVersions.add(serviceVersion)
+
+    // Provide a way for the provider to check whether it's still the highest
+    // version of the provider that gets consumed. This lets it turn into an
+    // effective no-op provider if, say, a v4 service finds it's been
+    // superseded in registration by a v5.1 service.
+    const isActive = () => serviceVersion === this.getAutocompleteProviderServiceVersion()
+
     return {
       selector: this.getGrammarScopes()
         .map((g) => grammarScopeToAutoCompleteSelector(g))
@@ -1606,13 +1625,27 @@ export default class AutoLanguageClient {
       suggestionPriority: this.getSuggestionPriorityForAutocomplete(),
       excludeLowerPriority: false,
       filterSuggestions: true,
-      getSuggestions: this.getSuggestions.bind(this),
+      getSuggestions: (request) => {
+        // If we're no longer the highest version, return no results.
+        if (!isActive()) return Promise.resolve([])
+        return this.getSuggestions(request)
+      },
       onDidInsertSuggestion: (event) => {
-        AutocompleteAdapter.applyAdditionalTextEdits(event)
+        if (!isActive()) return
+        AutocompleteAdapter.handlePostInsertionTasks(event, serviceVersion)
         this.onDidInsertSuggestion(event)
       },
-      getSuggestionDetailsOnSelect: this.getSuggestionDetailsOnSelect.bind(this)
+      getSuggestionDetailsOnSelect: (suggestion) => {
+        if (!isActive()) return Promise.resolve(null)
+        return this.getSuggestionDetailsOnSelect(suggestion)
+      }
     }
+
+  }
+
+  /** The highest service version this Pulsar was able to consume from us. */
+  private getAutocompleteProviderServiceVersion(): AutocompleteProviderServiceVersion {
+    return this._requestedAutocompleteServiceVersions.has(5.1) ? 5.1 : 4
   }
 
   protected async getSuggestions(request: ac.SuggestionsRequestedEvent): Promise<ac.AnySuggestion[]> {
@@ -1622,6 +1655,7 @@ export default class AutoLanguageClient {
     }
 
     this.autoComplete = this.autoComplete || new AutocompleteAdapter(this.logger)
+    this.autoComplete.serviceVersion = this.getAutocompleteProviderServiceVersion()
     this._lastAutocompleteRequest = request
     return this.autoComplete.getSuggestions(
       server,

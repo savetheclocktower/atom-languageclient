@@ -203,13 +203,13 @@ export default class Convert {
 
   /** @deprecated Use Linter V2 service */
   public static atomIdeDiagnosticToLSDiagnostic(diagnostic: atomIde.Diagnostic): ls.Diagnostic {
-     
+
     return atomIdeDiagnosticToLSDiagnostic(diagnostic)
   }
 
   /** @deprecated Use Linter V2 service */
   public static diagnosticTypeToLSSeverity(type: atomIde.DiagnosticType): ls.DiagnosticSeverity {
-     
+
     return diagnosticTypeToLSSeverity(type)
   }
 
@@ -241,6 +241,25 @@ export default class Convert {
     return {
       oldRange: Convert.lsRangeToAtomRange(textEdit.range),
       newText
+    }
+  }
+
+  /**
+   * Public: Convert a language server protocol {@link ls.InsertReplaceEdit}
+   * to the Atom {@link atomIde.TextEdit} equivalent, resolving which of its
+   * two candidate ranges applies.
+   *
+   * @param edit The {@link ls.InsertReplaceEdit} to convert.
+   * @param shouldReplace Whether to use the `replace` range rather than the
+   *   `insert` range.
+   */
+  public static convertLsInsertReplaceEdit(
+    edit: ls.InsertReplaceEdit,
+    shouldReplace: boolean = false
+  ): atomIde.TextEdit {
+    return {
+      oldRange: Convert.lsRangeToAtomRange(shouldReplace ? edit.replace : edit.insert),
+      newText: edit.newText
     }
   }
 
